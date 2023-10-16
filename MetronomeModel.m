@@ -185,8 +185,8 @@ for k = 1:16:size(Y{1},2)
     % im = frame2im(F);
     % [MM,MMM] = rgb2ind(im,256);
     % if k==1
-    %     imwrite(MM,MMM,'C:\Users\tparr\Dropbox\Notes on papers\Notes\Sanjay Manohar\TP\Animation.gif','gif','LoopCount',Inf,'DelayTime',0.1);
+    %     imwrite(MM,MMM,'\Animation.gif','gif','LoopCount',Inf,'DelayTime',0.1);
     % else
-    %     imwrite(MM,MMM,'C:\Users\tparr\Dropbox\Notes on papers\Notes\Sanjay Manohar\TP\Animation.gif','gif','WriteMode','append','DelayTime',0.1);
+    %     imwrite(MM,MMM,'\Animation.gif','gif','WriteMode','append','DelayTime',0.1);
     % end
 end
