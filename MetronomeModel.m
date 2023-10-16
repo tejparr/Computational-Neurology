@@ -15,6 +15,8 @@ dt   = 1/4;             % Length of timestep
 tT   = (0:Nt)*dt;       % Time
 T    = round(tT(end));  % Final time
 
+try OPTIONS.plot; catch, OPTIONS.plot = 1; end
+
 %% Generative model
 %-------------------------------------------------------------------------- 
 
@@ -31,7 +33,10 @@ end
 % Transition dynamics
 %--------------------------------------------------------------------------
 b11  = 0; b22 = 0;
-B    = [b11   1-b22;
+B{1} = [b11   1-b22;        % Controllable factor (choice of attractor)
+       1-b11   b22];
+b11  = 0.8; b22 = 0.8;      % Uncontrollable factor (presence or absence of occluder)
+B{2} = [b11   1-b22;
        1-b11   b22];
 
 % Attractor locations
@@ -45,28 +50,31 @@ smax = @(x) exp(x)/sum(exp(x));             % Softmax function
 sig  = @(x) 1/(1+exp(-4*x));                % Sigmoid function
 try gamma = P.gamma; catch, gamma = 2; end  % Precision of policy selection
 
-f = @(x) [Jf*x(1:size(Jf,2),1);                                                                 % oscillators as above
-          sig(sum(x(1:2:size(Jf,2)))-2)*(smax(gamma*x(end-2:end-1,1))-x(end-4:end-3,1))/4;      % current state
-          (1-sig(sum(x(1:2:size(Jf,2)))))*(log(B*x(end-4:end-3,1)+exp(-2))-x(end-2:end-1,1))/4; % next state
-          (tgt*x(end-4:end-3,1) - x(end))/4];                                                   % attractor dynamics
+f = @(x) [Jf*x(1:size(Jf,2),1);                                                                    % oscillators as above
+          sig(sum(x(1:2:size(Jf,2)))-2)*(smax(x(end-6:end-5,1))-x(end-8:end-7,1))/4;               % current state of occluder
+          (1-sig(sum(x(1:2:size(Jf,2)))))*(log(B{2}*x(end-8:end-7,1)+exp(-2))-x(end-6:end-5,1))/4; % next state of occluder
+          sig(sum(x(1:2:size(Jf,2)))-2)*(smax(gamma*x(end-2:end-1,1))-x(end-4:end-3,1))/4;         % current state
+          (1-sig(sum(x(1:2:size(Jf,2)))))*(log(B{1}*x(end-4:end-3,1)+exp(-2))-x(end-2:end-1,1))/4; % next state
+          (tgt*x(end-4:end-3,1) - x(end))/4];                                                      % attractor dynamics
 
 % Prediction of data (i.e., mode of likelihood)
 %--------------------------------------------------------------------------
-g = @(x) [exp(sum(x(1:2:end-5)))/64; x(end)];
+g = @(x) [x(end-8)*exp(sum(x(1:2:end-9)))/64; x(end)];
 
 % Precisions and orders of motion
 %--------------------------------------------------------------------------
 Pg      = diag([exp(2) exp(0)]); % Precision of likelihood
-Pf      = exp(4)*eye(2*No+5);    % Precision of dynamics
+Pf      = exp(4)*eye(2*No+9);    % Precision of dynamics
 Pf(end) = exp(0);                % Less precise controllable dynamics
 n       = 3;                     % Order of generalised motion
 s       = 1;                     % Smoothness
-m0      = randn(2*No + 5,1)/16;  % Initial beliefs
-m0(end-4:end-1) = [1;0;0;1];
+m0      = randn(2*No + 9,1)/16;  % Initial beliefs
+m0(end-4:end-1) = [1;0;-4;0];
+m0(end-8:end-5) = [1;0;0;-4];
 
 %% Generative process
 %--------------------------------------------------------------------------
-x0      = zeros(2*No + 5,1);     % Initial states (for generating data)
+x0      = zeros(2*No + 9,1);     % Initial states (for generating data)
 a0      = 0;                     % Initial active states
 
 try   x0(2*OPTIONS.freq) = 4;    % Option to set pendulum frequency
@@ -75,18 +83,22 @@ catch, x0(4)   = 4; end          % Non-zero amplitude for second pendulum
 
 % Equations of motion
 %--------------------------------------------------------------------------
-F = @(x,a) [Jf*x(1:size(Jf,2),1);                                                     % oscillators as above
-            sig(sum(x(1:2:size(Jf,2)))-2)*(x(end-2:end-1,1)-x(end-4:end-3,1))/4;      % current state
-            (1-sig(sum(x(1:2:size(Jf,2)))))*(B*x(end-4:end-3,1)-x(end-2:end-1,1))/4;  % next state
-            a];                                                                       % attractor dynamics
+F = @(x,a) [Jf*x(1:size(Jf,2),1);                                                                    % oscillators as above
+            sig(sum(x(1:2:size(Jf,2)))-2)*(smax(x(end-6:end-5,1))-x(end-8:end-7,1))/4;               % current state of occluder
+            (1-sig(sum(x(1:2:size(Jf,2)))))*(log(B{2}*x(end-8:end-7,1)+exp(-2))-x(end-6:end-5,1))/4; % next state of occluder
+            sig(sum(x(1:2:size(Jf,2)))-2)*(x(end-2:end-1,1)-x(end-4:end-3,1))/4;                     % current state
+            (1-sig(sum(x(1:2:size(Jf,2)))))*(B{1}*x(end-4:end-3,1)-x(end-2:end-1,1))/4;              % next state
+            a];                                                                                      % attractor dynamics
+
+G = @(x) [exp(sum(x(1:2:end-9)))/64; x(end)];
 
 %% Model inversion
 %--------------------------------------------------------------------------
 
 if exist('y','var')
-    [Y,M,t,a] = ActiveFiltering(f,F,Pf,g,g,Pg,x0,m0,n,s,dt,T,a0,y,2);
+    [Y,M,t,a] = ActiveFiltering(f,F,Pf,g,G,Pg,x0,m0,n,s,dt,T,a0,y,2);
 else
-    [Y,M,t,a] = ActiveFiltering(f,F,Pf,g,g,Pg,x0,m0,n,s,dt,T,a0);
+    [Y,M,t,a] = ActiveFiltering(f,F,Pf,g,G,Pg,x0,m0,n,s,dt,T,a0);
 end
 
 if OPTIONS.plot == 0, return, end
@@ -170,11 +182,11 @@ for k = 1:16:size(Y{1},2)
     title('Behaviour')
 
     subplot(3,2,5)
-    imagesc(1-M{1}(2*No+(1:2),k)'), colormap gray, axis off, clim([0 1])
+    imagesc(1-M{1}(2*No+(5:6),k)'), colormap gray, axis off, clim([0 1])
     title('Current target')
 
     subplot(3,2,6)
-    imagesc(1-smax(M{1}(2*No+(3:4),k))'), colormap gray, axis off, clim([0 1])
+    imagesc(1-smax(M{1}(2*No+(7:8),k))'), colormap gray, axis off, clim([0 1])
     title('Planned next target')
 
     drawnow
