@@ -181,24 +181,32 @@ for k = 1:16:size(Y{1},2)
     axis off
     title('Behaviour')
 
-    subplot(3,2,5)
+    subplot(6,2,9)
     imagesc(1-M{1}(2*No+(5:6),k)'), colormap gray, axis off, clim([0 1])
     title('Current target')
 
-    subplot(3,2,6)
+    subplot(6,2,11)
     imagesc(1-smax(M{1}(2*No+(7:8),k))'), colormap gray, axis off, clim([0 1])
     title('Planned next target')
 
-    drawnow
+    subplot(6,2,10)
+    imagesc(1-M{1}(2*No+(1:2),k)'), colormap gray, axis off, clim([0 1])
+    title('Current occlusion')
 
+    subplot(6,2,12)
+    imagesc(1-smax(M{1}(2*No+(3:4),k))'), colormap gray, axis off, clim([0 1])
+    title('Next occlusion')
+
+    drawnow
+    
     % Animation
-    %----------------------------------------------------------------------
+    % ----------------------------------------------------------------------
     % F  = getframe(gcf);
     % im = frame2im(F);
     % [MM,MMM] = rgb2ind(im,256);
     % if k==1
-    %     imwrite(MM,MMM,'\Animation.gif','gif','LoopCount',Inf,'DelayTime',0.1);
+    %     imwrite(MM,MMM,'Animation.gif','gif','LoopCount',Inf,'DelayTime',0.1);
     % else
-    %     imwrite(MM,MMM,'\Animation.gif','gif','WriteMode','append','DelayTime',0.1);
+    %     imwrite(MM,MMM,'Animation.gif','gif','WriteMode','append','DelayTime',0.1);
     % end
 end
