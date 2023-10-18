@@ -1,4 +1,4 @@
-# Computational-Neurology
+# Computational Neurology
 
 This repository deals with computational models with relevance to neurological syndromes. 
 
