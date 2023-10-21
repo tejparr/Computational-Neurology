@@ -11,12 +11,12 @@ In what follows, we illustrate the 'healthy' simulation under several different 
 
 ### 1.1 - Simulation under default settings
 The simulation presented here shows...
-<img src="./Animation_defaults.gif"/>
+<img src="./Graphics/Animation_defaults.gif"/>
 
 ### 1.2 - Simulation with faster stimulus presentation
 The simulation presented here shows...
-<img src="./Animation_fast.gif"/>
+<img src="./Graphics/Animation_fast.gif"/>
 
 ### 1.3 - Simulation with occlusions
 The simulation presented here shows...
-<img src="./Animation_occlusion.gif"/>
+<img src="./Graphics//Animation_occlusion.gif"/>
