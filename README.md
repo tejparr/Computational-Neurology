@@ -2,6 +2,13 @@
 
 This repository deals with computational models with relevance to neurological syndromes. 
 
+### Contents
+1. Internal clocks
+2.  
+
+A1. Active Filtering
+A2. Related models
+
 ## 1 - Internal clocks
 The simulations developed in the DEMO_Metronomes.m routine are designed to show how we might make use of internal clocks (or metronomes) to synchronise our behaviour to events in the world. This is of particular relevance for conditions such as Parkinson's disease or Lewy Body Dementia in which everything from movement to thought can be slowed. In such conditions, a particularly interesting phenomena observed is that of kinesia paradoxica, in which certain environmental stimuli can be used to generate much more fluid movement
 
@@ -20,3 +27,9 @@ The simulation presented here shows...
 ### 1.3 - Simulation with occlusions
 The simulation presented here shows...
 <img src="./Graphics//Animation_occlusion.gif"/>
+
+## 2. 
+
+## A1 - Active Filtering
+
+## A2 - Related Models
