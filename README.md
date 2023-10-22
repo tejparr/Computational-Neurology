@@ -27,7 +27,15 @@ The simulation presented here shows...
 
 ### 1.3 - Simulation with occlusions
 The simulation presented here shows...
-<img src="./Graphics//Animation_occlusion.gif"/>
+<img src="./Graphics/Animation_occlusion.gif"/>
+
+### 1.4 - Simulation with attenuated policy precision
+The simulation presented here shows...
+<img src="./Graphics/Animation_gamma_log1.gif"/>
+
+### 1.5 - Simulation with impaired segregation of preparation and execution phases
+The simulation presented here shows...
+<img src="./Graphics/Animation_alpha_log1.gif"/>
 
 ## 2. 
 
