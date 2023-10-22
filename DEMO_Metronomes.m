@@ -53,3 +53,8 @@ troughs   = find(islocalmin(y(1,:)));
 y(1,troughs(round(0.5*length(troughs))):troughs(round(0.85*length(troughs))))...
           = y(1,troughs(round(0.5*length(troughs))));
 [Y,M,t,a] = MetronomeModel(OPT,[],y); % Construct generative model and invert
+
+% Demonstrate effect of lesions
+%--------------------------------------------------------------------------
+P.gamma   = log(1);
+[Y,M,t,a] = MetronomeModel(OPT,P,y); % Construct generative model and invert

@@ -15,7 +15,13 @@ dt   = 1/4;             % Length of timestep
 tT   = (0:Nt)*dt;       % Time
 T    = round(tT(end));  % Final time
 
-try OPTIONS.plot; catch, OPTIONS.plot = 1; end
+try OPTIONS.plot;                catch, OPTIONS.plot = 1; end  % Plotting
+try OPTIONS.save;                catch, OPTIONS.save = 0; end  % Save animation file  
+try gamma = exp(P.gamma);        catch, gamma = 2;        end  % Precision of policy selection
+try alpha = exp(P.alpha);        catch, alpha = 4;        end  % Suppression of belief updating
+try beta  = exp(P.beta);         catch, beta  = 1;        end  % Log scale parameter for dynamical precision
+try theta = exp(P.theta);        catch, theta = 1;        end  % Log scale parameter for likelihood precision
+try zeta  = 1/(1+exp(-P.zeta));  catch, zeta  = 0.8;      end  % Beliefs about persistence of occluder state
 
 %% Generative model
 %-------------------------------------------------------------------------- 
@@ -32,12 +38,10 @@ end
 
 % Transition dynamics
 %--------------------------------------------------------------------------
-b11  = 0; b22 = 0;
-B{1} = [b11   1-b22;        % Controllable factor (choice of attractor)
-       1-b11   b22];
-b11  = 0.8; b22 = 0.8;      % Uncontrollable factor (presence or absence of occluder)
-B{2} = [b11   1-b22;
-       1-b11   b22];
+B{1} = [0   1;              % Controllable factor (choice of attractor)
+        1   0];  
+B{2} = [zeta   1-zeta;      % Uncontrollable factor (presence or absence of occluder)
+       1-zeta   zeta];
 
 % Attractor locations
 %--------------------------------------------------------------------------
@@ -47,8 +51,7 @@ tgt = [-1 1];
 %--------------------------------------------------------------------------
 
 smax = @(x) exp(x)/sum(exp(x));             % Softmax function
-sig  = @(x) 1/(1+exp(-4*x));                % Sigmoid function
-try gamma = P.gamma; catch, gamma = 2; end  % Precision of policy selection
+sig  = @(x) 1/(1+exp(-alpha*x));            % Sigmoid function
 
 f = @(x) [Jf*x(1:size(Jf,2),1);                                                                    % oscillators as above
           sig(sum(x(1:2:size(Jf,2)))-2)*(smax(x(end-6:end-5,1))-x(end-8:end-7,1))/4;               % current state of occluder
@@ -96,9 +99,9 @@ G = @(x) [exp(sum(x(1:2:end-9)))/64; x(end)];
 %--------------------------------------------------------------------------
 
 if exist('y','var')
-    [Y,M,t,a] = ActiveFiltering(f,F,Pf,g,G,Pg,x0,m0,n,s,dt,T,a0,y,2);
+    [Y,M,t,a] = ActiveFiltering(f,F,Pf*beta,g,G,Pg*theta,x0,m0,n,s,dt,T,a0,y,2);
 else
-    [Y,M,t,a] = ActiveFiltering(f,F,Pf,g,G,Pg,x0,m0,n,s,dt,T,a0);
+    [Y,M,t,a] = ActiveFiltering(f,F,Pf*beta,g,G,Pg*theta,x0,m0,n,s,dt,T,a0);
 end
 
 if OPTIONS.plot == 0, return, end
@@ -201,12 +204,14 @@ for k = 1:16:size(Y{1},2)
     
     % Animation
     % ----------------------------------------------------------------------
-    % F  = getframe(gcf);
-    % im = frame2im(F);
-    % [MM,MMM] = rgb2ind(im,256);
-    % if k==1
-    %     imwrite(MM,MMM,'Animation.gif','gif','LoopCount',Inf,'DelayTime',0.1);
-    % else
-    %     imwrite(MM,MMM,'Animation.gif','gif','WriteMode','append','DelayTime',0.1);
-    % end
+    if OPTIONS.save
+        F  = getframe(gcf);
+        im = frame2im(F);
+        [MM,MMM] = rgb2ind(im,256);
+        if k==1
+            imwrite(MM,MMM,'Graphics/Animation.gif','gif','LoopCount',Inf,'DelayTime',0.1);
+        else
+            imwrite(MM,MMM,'Graphics/Animation.gif','gif','WriteMode','append','DelayTime',0.1);
+        end
+    end
 end
