@@ -2,7 +2,7 @@ function [Y,M,t,a] = MetronomeModel(OPTIONS,P,y)
 % This function specifies and inverts the generative model for our 
 % metronome task, taking the parameters of our model and optionally data y
 % and returning outstanding simulated data Y, our belief trajectory M,
-% timesteps t, and action a. OPTIONS inlcludes option for plotting.
+% timesteps t, and action a. OPTIONS includes option for plotting.
 %
 % Thomas Parr
 %--------------------------------------------------------------------------
