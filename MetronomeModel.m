@@ -145,7 +145,39 @@ plot(t,a)
 title('Action')
 axis tight
 
-% Our second figure provides an animated version of the above designed to
+% Our second figure offers an interpretation of the belief-updating above
+% as a time-frequency analysis using Fourier wavelet transforms of the sort
+% sometimes used in electrophysiology research.
+
+f = (1:64)/128;
+
+figure('Name','Time-Frequency Analysis','Color','w')
+S = zeros(length(f),size(M{1},2));
+for i = 1:numel(M)
+    s = fwt(gradient(M{i}),f,1/64,1/16);
+    S = S + squeeze(sum(s,2));
+end
+
+subplot(3,1,1)
+plot(Y{1}(2,:))
+title('Kinematics')
+xlabel('Time')
+ylabel('Position')
+axis tight
+
+subplot(3,1,2)
+imagesc((1:size(M{i},2))/4, f, abs(S)), axis xy
+title('Time-Frequency')
+xlabel('Time')
+ylabel('Frequency')
+
+subplot(3,1,3)
+plot(sum(gradient(M{1}),1)), axis tight
+title('(unfiltered) LFPs')
+xlabel('Time')
+ylabel('Potential')
+
+% Our third figure provides an animated version of the above designed to
 % offer some intuition as to the simulated performance of the task and the
 % belief mechanics that underwrite this.
 

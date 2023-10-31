@@ -39,37 +39,23 @@ close all
 % Simulation under default parameters
 %--------------------------------------------------------------------------
 OPT.plot  = 1;                       % Turn on plotting
-[Y,M,~,~] = MetronomeModel(OPT);     % Construct generative model under defaults and invert
+[Y,~,~,~] = MetronomeModel(OPT);     % Construct generative model under defaults and invert
 y = Y{1};
 
 % Demonstrate effect of changing stimulus frequency
 %--------------------------------------------------------------------------
 OPT.freq  = 3;                       % Select third metronome
-[Y,~,~,~] = MetronomeModel(OPT);     % Construct generative model and invert
+MetronomeModel(OPT);                 % Construct generative model and invert
 
 % Demonstrate effect of occlusions
 %--------------------------------------------------------------------------
 troughs   = find(islocalmin(y(1,:)));
 y(1,troughs(round(0.5*length(troughs))):troughs(round(0.85*length(troughs))))...
           = y(1,troughs(round(0.5*length(troughs))));
-[Y,~,~,~] = MetronomeModel(OPT,[],y); % Construct generative model and invert
+MetronomeModel(OPT,[],y);            % Construct generative model and invert
 
 % Demonstrate effect of lesions
 %--------------------------------------------------------------------------
 P.gamma   = log(1);
-[Y,~,~,~] = MetronomeModel(OPT,P,y); % Construct generative model and invert
+MetronomeModel(OPT,P,y);             % Construct generative model and invert
 
-% Time-frequency analysis of belief-updates
-%--------------------------------------------------------------------------
-f = (1:64)/128;
-
-figure('Name','Time-Frequency Analysis','Color','w')
-for i = 1:numel(M)
-    S = fwt(M{i},f,1/128,1/16);
-    S = squeeze(sum(S,2));
-    subplot(numel(M),1,i)
-    imagesc((1:size(M{i},2))/4, f, abs(S)), axis xy
-    title('Time-Frequency')
-    xlabel('Time')
-    ylabel('Frequency')
-end
