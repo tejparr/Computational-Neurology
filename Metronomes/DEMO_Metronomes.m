@@ -56,6 +56,10 @@ MetronomeModel(OPT,[],y);            % Construct generative model and invert
 
 % Demonstrate effect of lesions
 %--------------------------------------------------------------------------
-P.gamma   = log(1);
+P.gamma   = log(1);                  % Reduce precision of policies
 MetronomeModel(OPT,P,y);             % Construct generative model and invert
 
+clear P
+
+P.beta = log(32);                    % Increase precision of dynamics
+MetronomeModel(OPT,P,y);             % Construct generative model and invert

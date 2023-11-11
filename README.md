@@ -18,5 +18,8 @@ This demo is based on the idea that we can make use of internal clocks to synchr
 See <a href="Metronomes/README.md">this linked documentation</a> for details and variations on these simulations.
 
 ## A1 - Active Filtering
+Active filtering refers to the use of a generalised filtering scheme that can be derived from an online application of variational Bayes, under a local Laplace assumption, to dynamical systems expressed in generalised coordinates of motion. Generalised coordinates effectively represent a timeseries in terms of position, velocity, acceleration, and subsequent orders of motion. The active part comes from allowing the filtering scheme to interact with the data-generating process. Effectively, this means equipping the sensory receptors that communicate data to the filter with reflex arcs, such that any deviation from predicted data can be 'corrected' through low level reflexes that bring data in line with our predictions. Crucially, this means both inference and action optimise the same objective function (the ELBO or variational free energy) - often used in machine learning to arrive at an approximation to a marginal likelihood. Please see <a href = "https://www.ncbi.nlm.nih.gov/pmc/articles/PMC8320263/"> Parr et al, 2021</a> and associated supplementary material for an overview of this scheme and its application to simple movement problems in neurology.
+
+[When complete, this section will include further detail on this scheme.]
 
 ## A2 - Related Models
