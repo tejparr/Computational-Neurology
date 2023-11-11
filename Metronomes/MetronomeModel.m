@@ -22,6 +22,7 @@ try alpha = exp(P.alpha);        catch, alpha = 4;        end  % Suppression of 
 try beta  = exp(P.beta);         catch, beta  = 1;        end  % Log scale parameter for dynamical precision
 try theta = exp(P.theta);        catch, theta = 1;        end  % Log scale parameter for likelihood precision
 try zeta  = 1/(1+exp(-P.zeta));  catch, zeta  = 0.8;      end  % Beliefs about persistence of occluder state
+try sigma = exp(P.sigma);        catch, sigma = 1;        end  % Beliefs about smoothness
 
 %% Generative model
 %-------------------------------------------------------------------------- 
@@ -70,7 +71,7 @@ Pg      = diag([exp(2) exp(0)]); % Precision of likelihood
 Pf      = exp(4)*eye(2*No+9);    % Precision of dynamics
 Pf(end) = exp(0);                % Less precise controllable dynamics
 n       = 3;                     % Order of generalised motion
-s       = 1;                     % Smoothness
+s       = sigma;                 % Smoothness
 m0      = randn(2*No + 9,1)/16;  % Initial beliefs
 m0(end-4:end-1) = [1;0;-4;0];
 m0(end-8:end-5) = [1;0;0;-4];
