@@ -14,9 +14,11 @@ Nt   = 2056;            % Number of timesteps
 dt   = 1/4;             % Length of timestep
 tT   = (0:Nt)*dt;       % Time
 T    = round(tT(end));  % Final time
+ut   = 4;               % Scale temporal units to ms
 
 try OPTIONS.plot;                catch, OPTIONS.plot = 1; end  % Plotting
 try OPTIONS.save;                catch, OPTIONS.save = 0; end  % Save animation file  
+try phi   = P.phi;               catch, phi   = pi/2;     end  % Phase offset of stimuli and action
 try gamma = exp(P.gamma);        catch, gamma = 2;        end  % Precision of policy selection
 try alpha = exp(P.alpha);        catch, alpha = 4;        end  % Suppression of belief updating
 try beta  = exp(P.beta);         catch, beta  = 1;        end  % Log scale parameter for dynamical precision
@@ -63,7 +65,7 @@ f = @(x) [Jf*x(1:size(Jf,2),1);                                                 
 
 % Prediction of data (i.e., mode of likelihood)
 %--------------------------------------------------------------------------
-g = @(x) [x(end-8)*exp(sum(x(1:2:end-9)))/64; x(end)];
+g = @(x) [x(end-8)*exp(sum(x(1:2:end-9)*cos(phi) - x(2:2:end-8)*sin(phi)))/64; x(end)];
 
 % Precisions and orders of motion
 %--------------------------------------------------------------------------
@@ -118,17 +120,17 @@ if OPTIONS.plot == 0, return, end
 figure('Name','Variable Trajectories','Color','w')
 
 subplot(4,1,1)
-plot(t,Y{1}), hold on
+plot(t*ut,Y{1}), hold on
 for i = 1:size(M{1},2)
     pY(:,i) = g(M{1}(:,i));
     pF(:,i) = [sig(sum(M{1}((1:2:(size(M{1},1)-4)),i))-2);(1-sig(sum(M{1}(1:2:(size(M{1},1)-4),i))))];
 end
-plot(t,pY,'--k'), hold off
+plot(t*ut,pY,'--k'), hold off
 title('Data (-) and predictions (--)')
 axis tight
 
 subplot(4,1,2)
-plot(t,M{1}(1:end-4,:))
+plot(t*ut,M{1}(1:end-4,:))
 title('Beliefs (modes) about oscillators')
 axis tight
 
@@ -137,12 +139,12 @@ C = zeros(16,length(t),3);
 C(:,:,1) = repmat(1-pF(1,:)/4,16,1,1);
 C(:,:,2) = repmat(1-pF(2,:)/4 -pF(1,:)/4,16,1,1);
 C(:,:,3) = repmat(1-pF(2,:)/4,16,1,1);
-image([t(1) t(end)],[-2 2],C), hold on
-plot(t,M{1}(end-4:end-1,:)), hold off
+image([t(1) t(end)]*ut,[-2 2],C), hold on
+plot(t*ut,M{1}(end-4:end-1,:)), hold off
 title('Beliefs about sequencing')
 
 subplot(4,1,4)
-plot(t,a)
+plot(t*ut,a)
 title('Action')
 axis tight
 
@@ -160,7 +162,7 @@ for i = 1:numel(M)
 end
 
 subplot(3,1,1)
-plot(Y{1}(2,:))
+plot(t*ut,Y{1}(2,:))
 title('Kinematics')
 xlabel('Time')
 ylabel('Position')
