@@ -1,4 +1,5 @@
 function S = fwt(X,f,w,dt)
+% Format S = fwt(X,f,w,dt)
 % Time-freq analysis using a Fourier Wavelet Transform of X (an n x t 
 % matrix) with frequencies given by the vector f and window given by w.
 %--------------------------------------------------------------------------
