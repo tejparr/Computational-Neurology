@@ -21,7 +21,7 @@ try OPTIONS.plot;                catch, OPTIONS.plot = 1; end  % Plotting
 try OPTIONS.save;                catch, OPTIONS.save = 0; end  % Save animation file  
 try OPTIONS.int;                 catch, OPTIONS.int  = 0; end  % Integer multiples between frequencies
 try phi   = P.phi;               catch, phi   = pi/2;     end  % Phase offset of stimuli and action
-try gamma = exp(P.gamma);        catch, gamma = 2;        end  % Precision of policy selection
+try gamma = exp(P.gamma);        catch, gamma = 4;        end  % Precision of policy selection
 try alpha = exp(P.alpha);        catch, alpha = 4;        end  % Suppression of belief updating
 try beta  = exp(P.beta);         catch, beta  = 1;        end  % Log scale parameter for dynamical precision
 try theta = exp(P.theta);        catch, theta = 1;        end  % Log scale parameter for likelihood precision
@@ -66,7 +66,6 @@ tgt = [-1 1];
 % Combine pendular dynamics with transition and attractor dynamics
 %--------------------------------------------------------------------------
 
-smax = @(x) exp(x)/sum(exp(x));             % Softmax function
 sig  = @(x) 1/(1+exp(-alpha*x));            % Sigmoid function
 
 f = @(x) [Jf*x(1:size(Jf,2),1);                                                                    % oscillators as above
@@ -164,35 +163,46 @@ axis tight
 
 % Our second figure offers an interpretation of the belief-updating above
 % as a time-frequency analysis using Fourier wavelet transforms of the sort
-% sometimes used in electrophysiology research.
+% sometimes used in electrophysiology research. This is supplemented with a
+% power spectral density.
 
-f = (1:64)/128;
+f = (4:64)/2;
 
 figure('Name','Time-Frequency Analysis','Color','w')
 S = zeros(length(f),size(M{1},2));
+PSD = zeros(length(f),numel(M));
 for i = 1:numel(M)
-    s = fwt(gradient(M{i}),f,1/64,1/16);
+    s = fwt(gradient(M{i}),f,16,ut/1000);
     S = S + squeeze(sum(s,2));
+    for j = 1:size(M{i},1)
+        PSD(:,i) = PSD(:,i) + psd_ls(gradient(M{i}(j,:)),32,f,dt*ut/1000)';
+    end
 end
 
-subplot(3,1,1)
+subplot(2,2,1)
 plot(t*ut,Y{1}(2,:))
 title('Kinematics')
-xlabel('Time')
+xlabel('Time (ms)')
 ylabel('Position')
 axis tight
 
-subplot(3,1,2)
-imagesc((1:size(M{i},2))/4, f, abs(S)), axis xy
+subplot(2,2,2)
+imagesc((1:size(M{i},2))*dt*ut, f, abs(S)), axis xy
 title('Time-Frequency')
-xlabel('Time')
-ylabel('Frequency')
+xlabel('Time (ms)')
+ylabel('Frequency (Hz)')
 
-subplot(3,1,3)
+subplot(2,2,3)
 plot(sum(gradient(M{1}),1)), axis tight
 title('(unfiltered) LFPs')
 xlabel('Time')
 ylabel('Potential')
+
+subplot(2,2,4)
+plot(f,log(sum(PSD,2))), axis tight
+title('Power Spectral Density')
+xlabel('Frequency (Hz)')
+ylabel('log power')
 
 % Our third figure provides an animated version of the above designed to
 % offer some intuition as to the simulated performance of the task and the
