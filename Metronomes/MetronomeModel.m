@@ -10,23 +10,25 @@ function [Y,M,t,a] = MetronomeModel(OPTIONS,P,y)
 
 % Preliminaries
 %--------------------------------------------------------------------------
-No   = 4;               % Number of clocks
-Nt   = 2056;            % Number of timesteps
-dt   = 1/4;             % Length of timestep
-tT   = (0:Nt)*dt;       % Time
-T    = round(tT(end));  % Final time
-ut   = 4;               % Scale temporal units to ms
-
 try OPTIONS.plot;                catch, OPTIONS.plot = 1; end  % Plotting
+try OPTIONS.ani;                 catch, OPTIONS.ani  = 1; end  % Animate
 try OPTIONS.save;                catch, OPTIONS.save = 0; end  % Save animation file  
 try OPTIONS.int;                 catch, OPTIONS.int  = 0; end  % Integer multiples between frequencies
+try Nt = OPTIONS.T;              catch, Nt = 4112;        end  % Number of timesteps
 try phi   = P.phi;               catch, phi   = pi/2;     end  % Phase offset of stimuli and action
 try gamma = exp(P.gamma);        catch, gamma = 4;        end  % Precision of policy selection
 try alpha = exp(P.alpha);        catch, alpha = 4;        end  % Suppression of belief updating
 try beta  = exp(P.beta);         catch, beta  = 1;        end  % Log scale parameter for dynamical precision
-try theta = exp(P.theta);        catch, theta = 1;        end  % Log scale parameter for likelihood precision
+try thetaP = exp(P.thetaP);      catch, thetaP = 1;       end  % Log scale parameter for likelihood (proprio) precision
+try thetaE = exp(P.thetaE);      catch, thetaE = 1;       end  % Log scale parameter for likelihood (extero) precision
 try zeta  = 1/(1+exp(-P.zeta));  catch, zeta  = 0.8;      end  % Beliefs about persistence of occluder state
 try sigma = exp(P.sigma);        catch, sigma = 1;        end  % Beliefs about smoothness
+
+No   = 4;               % Number of clocks
+dt   = 1/4;             % Length of timestep
+tT   = (0:Nt)*dt;       % Time
+T    = round(tT(end));  % Final time
+ut   = 4;               % Scale temporal units to ms
 
 %% Generative model
 %-------------------------------------------------------------------------- 
@@ -56,8 +58,8 @@ end
 %--------------------------------------------------------------------------
 B{1} = [0   1;              % Controllable factor (choice of attractor)
         1   0];  
-B{2} = [zeta   1-zeta;      % Uncontrollable factor (presence or absence of occluder)
-       1-zeta   zeta];
+B{2} = [1   1;              % Uncontrollable factor (presence or absence of occluder)
+        0   0];
 
 % Attractor locations
 %--------------------------------------------------------------------------
@@ -68,12 +70,13 @@ tgt = [-1 1];
 
 sig  = @(x) 1/(1+exp(-alpha*x));            % Sigmoid function
 
-f = @(x) [Jf*x(1:size(Jf,2),1);                                                                    % oscillators as above
-          sig(sum(x(1:2:size(Jf,2)))-2)*(smax(x(end-6:end-5,1))-x(end-8:end-7,1))/4;               % current state of occluder
-          (1-sig(sum(x(1:2:size(Jf,2)))))*(log(B{2}*x(end-8:end-7,1)+exp(-2))-x(end-6:end-5,1))/4; % next state of occluder
-          sig(sum(x(1:2:size(Jf,2)))-2)*(smax(gamma*x(end-2:end-1,1))-x(end-4:end-3,1))/4;         % current state
-          (1-sig(sum(x(1:2:size(Jf,2)))))*(log(B{1}*x(end-4:end-3,1)+exp(-2))-x(end-2:end-1,1))/4; % next state
-          (tgt*x(end-4:end-3,1) - x(end))/4];                                                      % attractor dynamics
+f = @(x) [Jf*x(1:size(Jf,2),1);                                                                  % oscillators as above
+        sig(sum(x(1:2:size(Jf,2)))-2)*(smax(zeta*x(end-6:end-5,1))-x(end-8:end-7,1))/4;          % current state of occluder
+        (1-sig(sum(x(1:2:size(Jf,2)))))*(log(B{2}*x(end-8:end-7,1)+exp(-2))-x(end-6:end-5,1))/4; % next state of occluder
+        sig(sum(x(1:2:size(Jf,2)))-2)*(smax(gamma*x(end-2:end-1,1))-x(end-4:end-3,1))/4;         % current state
+        (1-sig(sum(x(1:2:size(Jf,2)))))*(log(B{1}*x(end-4:end-3,1)+exp(-2))-x(end-2:end-1,1))/4; % next state
+        (tgt*x(end-4:end-3,1) - x(end))/4];                                                      % attractor dynamics
+
 
 % Prediction of data (i.e., mode of likelihood)
 %--------------------------------------------------------------------------
@@ -81,14 +84,14 @@ g = @(x) [x(end-8)*exp(sum(x(1:2:end-9)*cos(phi) - x(2:2:end-8)*sin(phi)))/64; x
 
 % Precisions and orders of motion
 %--------------------------------------------------------------------------
-Pg      = diag([exp(2) exp(0)]); % Precision of likelihood
-Pf      = exp(4)*eye(2*No+9);    % Precision of dynamics
-Pf(end) = exp(0);                % Less precise controllable dynamics
-n       = 3;                     % Order of generalised motion
-s       = sigma;                 % Smoothness
-m0      = randn(2*No + 9,1)/16;  % Initial beliefs
-m0(end-4:end-1) = [1;0;-4;0];
-m0(end-8:end-5) = [1;0;0;-4];
+Pg      = diag([exp(2)*thetaE exp(0)*thetaP]); % Precision of likelihood
+Pf      = exp(4)*eye(2*No+9);                  % Precision of dynamics
+Pf(end) = exp(0);                              % Less precise controllable dynamics
+n       = 3;                                   % Order of generalised motion
+s       = sigma;                               % Smoothness
+m0      = randn(2*No + 9,1)/16;                % Initial beliefs
+m0(end-4:end-1) = [1;0;-2;0];
+m0(end-8:end-5) = [1;0;0;-2];
 
 %% Generative process
 %--------------------------------------------------------------------------
@@ -114,9 +117,9 @@ G = @(x) [exp(sum(x(1:2:end-9)))/64; x(end)];
 %--------------------------------------------------------------------------
 
 if exist('y','var')
-    [Y,M,t,a] = ActiveFiltering(f,F,Pf*beta,g,G,Pg*theta,x0,m0,n,s,dt,T,a0,y,2);
+    [Y,M,t,a] = ActiveFiltering(f,F,Pf*beta,g,G,Pg,x0,m0,n,s,dt,T,a0,y,2);
 else
-    [Y,M,t,a] = ActiveFiltering(f,F,Pf*beta,g,G,Pg*theta,x0,m0,n,s,dt,T,a0);
+    [Y,M,t,a] = ActiveFiltering(f,F,Pf*beta,g,G,Pg,x0,m0,n,s,dt,T,a0);
 end
 
 if OPTIONS.plot == 0, return, end
@@ -204,73 +207,77 @@ title('Power Spectral Density')
 xlabel('Frequency (Hz)')
 ylabel('log power')
 
+if OPTIONS.ani
+
 % Our third figure provides an animated version of the above designed to
 % offer some intuition as to the simulated performance of the task and the
 % belief mechanics that underwrite this.
 
-figure('Name','Animation','Color','w')
+    figure('Name','Animation','Color','w')
 
-[i,j] = meshgrid(-10:0.1:10,-10:0.1:10);
-stim  = exp(-(i.^2 + j.^2)/4);
+    [i,j] = meshgrid(-10:0.1:10,-10:0.1:10);
+    stim  = exp(-(i.^2 + j.^2)/4);
 
-for k = 1:16:size(Y{1},2)
-    subplot(3,2,1)
-    imagesc(-stim*Y{1}(1,k)), colormap gray, clim([-max(Y{1}(1,:)) 0])
-    axis square, axis off
-    title('Stimulus')
+    for k = 1:16:size(Y{1},2)
+        subplot(3,2,1)
+        imagesc(-stim*Y{1}(1,k)), colormap gray, clim([-max(Y{1}(1,:)) 0])
+        axis square, axis off
+        title('Stimulus')
 
-    subplot(3,2,2)
-    for i = 1:2:2*No
-        plot([0 M{1}(i,k)],[0 M{1}(i+1,k)],'k'), hold on
-        plot(M{1}(i,k),M{1}(i+1,k),'.k','MarkerSize',8)
-    end
-    hold off
-    xlim([-max(max(M{1}(1:2*No,:))) max(max(M{1}(1:2*No,:)))])
-    ylim([-max(max(M{1}(1:2*No,:))) max(max(M{1}(1:2*No,:)))])
-    axis square
-    axis off
-    title('Internal clock')
+        subplot(3,2,2)
+        for i = 1:2:2*No
+            plot([0 M{1}(i,k)],[0 M{1}(i+1,k)],'k'), hold on
+            plot(M{1}(i,k),M{1}(i+1,k),'.k','MarkerSize',8)
+        end
+        hold off
+        xlim([-max(max(M{1}(1:2*No,:))) max(max(M{1}(1:2*No,:)))])
+        ylim([-max(max(M{1}(1:2*No,:))) max(max(M{1}(1:2*No,:)))])
+        axis square
+        axis off
+        title('Internal clock')
 
-    subplot(3,1,2)
-    plot(tgt,[0 0],'.r','MarkerSize',32), hold on
-    if k > 8
-        for j = 8:-1:0
-            plot(Y{1}(2,k-j),0,'.','Color',[1 1 1]*j/8,'MarkerSize',16)
+        subplot(3,1,2)
+        plot(tgt,[0 0],'.r','MarkerSize',32), hold on
+        if k > 8
+            for j = 8:-1:0
+                plot(Y{1}(2,k-j),0,'.','Color',[1 1 1]*j/8,'MarkerSize',16)
+            end
+        end
+        hold off
+        xlim([-1 1] + tgt)
+        axis off
+        title('Behaviour')
+
+        subplot(6,2,9)
+        imagesc(1-M{1}(2*No+(5:6),k)'), colormap gray, axis off, clim([0 1])
+        title('Current target')
+
+        subplot(6,2,11)
+        imagesc(1-smax(M{1}(2*No+(7:8),k))'), colormap gray, axis off, clim([0 1])
+        title('Planned next target')
+
+        subplot(6,2,10)
+        imagesc(1-M{1}(2*No+(1:2),k)'), colormap gray, axis off, clim([0 1])
+        title('Current occlusion')
+
+        subplot(6,2,12)
+        imagesc(1-smax(M{1}(2*No+(3:4),k))'), colormap gray, axis off, clim([0 1])
+        title('Next occlusion')
+
+        drawnow
+
+        % Animation
+        % -----------------------------------------------------------------
+        if OPTIONS.save
+            F  = getframe(gcf);
+            im = frame2im(F);
+            [MM,MMM] = rgb2ind(im,256);
+            if k==1
+                imwrite(MM,MMM,'Graphics/Animation.gif','gif','LoopCount',Inf,'DelayTime',0.1);
+            else
+                imwrite(MM,MMM,'Graphics/Animation.gif','gif','WriteMode','append','DelayTime',0.1);
+            end
         end
     end
-    hold off
-    xlim([-1 1] + tgt)
-    axis off
-    title('Behaviour')
 
-    subplot(6,2,9)
-    imagesc(1-M{1}(2*No+(5:6),k)'), colormap gray, axis off, clim([0 1])
-    title('Current target')
-
-    subplot(6,2,11)
-    imagesc(1-smax(M{1}(2*No+(7:8),k))'), colormap gray, axis off, clim([0 1])
-    title('Planned next target')
-
-    subplot(6,2,10)
-    imagesc(1-M{1}(2*No+(1:2),k)'), colormap gray, axis off, clim([0 1])
-    title('Current occlusion')
-
-    subplot(6,2,12)
-    imagesc(1-smax(M{1}(2*No+(3:4),k))'), colormap gray, axis off, clim([0 1])
-    title('Next occlusion')
-
-    drawnow
-    
-    % Animation
-    % ----------------------------------------------------------------------
-    if OPTIONS.save
-        F  = getframe(gcf);
-        im = frame2im(F);
-        [MM,MMM] = rgb2ind(im,256);
-        if k==1
-            imwrite(MM,MMM,'Graphics/Animation.gif','gif','LoopCount',Inf,'DelayTime',0.1);
-        else
-            imwrite(MM,MMM,'Graphics/Animation.gif','gif','WriteMode','append','DelayTime',0.1);
-        end
-    end
 end

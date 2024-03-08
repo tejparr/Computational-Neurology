@@ -39,6 +39,7 @@ close all
 % Simulation under default parameters
 %--------------------------------------------------------------------------
 OPT.plot  = 1;                       % Turn on plotting
+OPT.ani   = 1;                       % Turn off animation
 [Y,~,~,~] = MetronomeModel(OPT);     % Construct generative model under defaults and invert
 y = Y{1};
 
@@ -56,10 +57,25 @@ MetronomeModel(OPT,[],y);            % Construct generative model and invert
 
 % Demonstrate effect of lesions
 %--------------------------------------------------------------------------
-P.gamma   = log(1);                  % Reduce precision of policies
+P.gamma = log(1);                    % Reduce precision of policies
 MetronomeModel(OPT,P,y);             % Construct generative model and invert
 
 clear P
 
-P.beta = log(32);                    % Increase precision of dynamics
+P.beta = log(1/8);                   % Reduced dynamical precision
+MetronomeModel(OPT,P,y);             % Construct generative model and invert
+
+clear P
+
+P.zeta = exp(64);                    % Confident in absent occluder status
+MetronomeModel(OPT,P,y);             % Construct generative model and invert
+
+clear P
+
+P.alpha = 1;                         % Blur belief-updating into action execution
+MetronomeModel(OPT,P,y);             % Construct generative model and invert
+
+clear P
+
+P.thetaP = 2;                        % Excessive proprioceptive precision
 MetronomeModel(OPT,P,y);             % Construct generative model and invert
