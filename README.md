@@ -37,8 +37,25 @@ D\tilde{x} = \tilde{f}(\tilde{x}) + \tilde{\omega}_x \\
 \tilde{y} = \tilde{g}(\tilde{x}) + \tilde{\omega}_y
 \end{align}
 ```
+These equations can be expressed in terms of probability distributions:
+```math
+\begin{align}
+p(D\tilde{x}) = N(\tilde{f}(\tilde{x}),\tilde{\Pi}_x)p(x) \\
+p(\tilde{y}|\tilde{x}) = N(\tilde{g}(\tilde{x}),\tilde{\Pi}_y)
+\end{align}
+```
 
 [When complete, this section will include further detail on this scheme.]
+Generation of action depends upon optimisation of the free energy with respect to the data. This requires an expression of the gradients of the data with respect to action. Assuming for the purposes of what follows that the generative process is determinstic, and expressing this with bold functions, we have:
+```math
+\begin{align}
+y^{[i]} = \mathbf{g}^{[i]}(x^{[i]}) \\
+\Rightarrow \\
+\partial_a \mathbf{g}^{[i]}(x^{[i]})  = \partial_a x^{[i]} \partial_{x^{[i]}}  \mathbf{g}^{[i]}(x^{[i]}) \\
+ \mathbf{g}^{[i]}(x^{[i]}) \approx \partial_{x^{[0]}} \mathbf{g}^{[0]}(x^{[0]}) x^{[i]} 
+
+\end{align}
+```
 
 ## A2 - Message Passing
 
