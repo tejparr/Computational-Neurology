@@ -40,7 +40,7 @@ D\tilde{x} = \tilde{f}(\tilde{x}) + \tilde{\omega}_x \\
 These equations can be expressed in terms of probability distributions:
 ```math
 \begin{align}
-p(D\tilde{x}) = N(\tilde{f}(\tilde{x}),\tilde{\Pi}_x)p(x) \\
+p(\tilde{x}) = N(D \cdot \tilde{f}(\tilde{x}),\tilde{\Pi}_x) \\
 p(\tilde{y}|\tilde{x}) = N(\tilde{g}(\tilde{x}),\tilde{\Pi}_y)
 \end{align}
 ```
