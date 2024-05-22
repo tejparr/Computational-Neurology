@@ -4,5 +4,11 @@ function x = smax(y)
 % unnormalised log probability values into a categorical probability
 % distribution.
 %--------------------------------------------------------------------------
-x = exp(y)*diag(1./sum(exp(y)));
+if size(y) == 1
 
+    x =  exp(y)/(exp(y) + 1);
+    
+else
+
+    x = exp(y)*diag(1./sum(exp(y)));
+end

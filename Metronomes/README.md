@@ -11,21 +11,26 @@ In what follows, we illustrate the 'healthy' simulation under several different 
 
 ### Simulation under default settings
 The simulation presented here shows...
-<img src="./Graphics/Animation_defaults.gif"/>
+<img src="./Graphics/Animation Default.gif"/>
 
 ### Simulation with faster stimulus presentation
 The simulation presented here shows...
-<img src="./Graphics/Animation_fast.gif"/>
+<img src="./Graphics/Animation Fast.gif"/>
 
 ### Simulation with occlusions
 The simulation presented here shows...
-<img src="./Graphics/Animation_occlusion.gif"/>
+<img src="./Graphics/Animation Default  Occlusion.gif"/>
 
 ### Simulation with attenuated policy precision
 The simulation presented here shows...
-<img src="./Graphics/Animation_gamma_log1.gif"/>
+<img src="./Graphics/Animation Impaired Policy Precision.gif"/>
 
 ### Simulation with impaired segregation of preparation and execution phases
 The simulation presented here shows...
-<img src="./Graphics/Animation_alpha_log1.gif"/>
+<img src="./Graphics/Animation Impaired chunking precision.gif"/>
+
+### Simulation with belief in persistence of occluder status
+The simulation presented here shows...
+<img src="./Graphics/Animation Persistent Occluders.gif"/>
+
 

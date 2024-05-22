@@ -7,17 +7,16 @@ function S = fwt(X,f,w,dt)
 T = size(X,2);
 S = zeros(length(f),size(X,1),size(X,2));
 n = size(X,1);
-ft = exp(1i*2*pi*f.*(0:T-1)'*dt);                     % Discrete Fourier Transform matrix
 
 for t = 1:T
-    g  = repmat(exp( - w*dt^2*((1:T) - t).^2),[n,1]); % Gaussian Window
-    gX = g.*X;                                        % Windowed timeseries
-    S(:,:,t) = (gX*ft)';                              % Local Fourier Transform
+    g  = repmat(exp( - w*dt^2*((1:T) - t).^2),[n,1]);          % Gaussian Window
+    gX = g(:,g(1,:)>exp(-8)).*X(:,g(1,:)>exp(-8));             % Windowed timeseries
+    S(:,:,t) = (gX*exp(1i*2*pi*f.*(0:size(gX,2)-1)'*dt))';     % Local Fourier Transform
 end
 
 return
 
-% Demo
+%% Demo
 %--------------------------------------------------------------------------
 dt = 1/16;
 f  = (1:64)/16;

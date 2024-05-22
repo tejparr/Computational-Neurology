@@ -15,11 +15,12 @@ function [Y,M,t,a] = ActiveFiltering(f,F,Pf,g,G,Pg,x0,m0,n,s,dt,T,a0,y,yc)
 %__________________________________________________________________________
 
 try T = dt*(size(y,2)-1); catch,                 end
-try Ng = size(g(x0),1);   catch, Ng = size(g,1); end
+try Ng = size(g(m0),1);   catch, Ng = size(g,1); end
 
 t = 0:dt:T;
 
-Nf = size(x0,1);
+Nf = size(m0,1);
+NF = size(x0,1);
 
 g0 = cell(n,1);
 G0 = cell(n,1);
@@ -32,7 +33,7 @@ F0 = cell(n,1);
 X     = cell(n,1);
 Y     = cell(n,1);
 M     = cell(n,1);
-X{1}  = zeros(Nf,length(t)); X{1}(:,1) = x0;
+X{1}  = zeros(NF,length(t)); X{1}(:,1) = x0;
 M{1}  = zeros(Nf,length(t)); M{1}(:,1) = m0;
 
 if ~isempty(a0)
@@ -45,7 +46,7 @@ try f0{1} = f(M{1}(:,1));     catch, f0{1} = f;   end
 fJ = AF_dfdx(f,M{1}(:,1));
 
 for j = 2:n
-    X{j}     = zeros(Nf,length(t));
+    X{j}     = zeros(NF,length(t));
     if exist('y','var')
         Y{j} = gradient(Y{j-1})/dt;
         Y{j}(yc,:) = 0;
@@ -115,12 +116,14 @@ for i = 1:length(t)
     %----------------------------------------------------------------------
     for k = 1:(n-1)
         if ~exist('y','var'), Y{k}(:,i)   = G0{k};
-        else Y{k}(yc,i)                   = G0{k}(yc);
+        else 
+             Y{k}(yc,i)                   = G0{k}(yc);
         end
 
     end
     if ~exist('y','var'), Y{n}(:,i) = G0{n};
-    else Y{n}(yc,i)                 = G0{n}(yc);
+    else 
+        Y{n}(yc,i)                  = G0{n}(yc);
     end
     
     if i == length(t)
@@ -168,8 +171,8 @@ for i = 1:length(t)
     else
         Jxa = [FJ FJa;dFdax dFdaa];
         Xa          = [X{1}(:,i); a(:,i)] + pinv(Jxa)*(expm(dt*Jxa) - eye(size(Jxa,1)))*[F0{1};dFda];
-        X{1}(:,i+1) = Xa(1:Nf,1);
-        a(:,i+1)    = Xa(Nf+1:end,1);
+        X{1}(:,i+1) = Xa(1:NF,1);
+        a(:,i+1)    = Xa(NF+1:end,1);
     end
 end
 
