@@ -46,13 +46,27 @@ p(\tilde{y}|\tilde{x}) = N(\tilde{g}(\tilde{x}),\tilde{\Pi}_y)
 ```
 
 [When complete, this section will include further detail on this scheme.]
-Generation of action depends upon optimisation of the free energy with respect to the data. This requires an expression of the gradients of the data with respect to action. Assuming for the purposes of what follows that the generative process is determinstic, and expressing this with bold functions, we have:
+Generation of action depends upon optimisation of the free energy with respect to the data. This requires an expression of the gradients of the data with respect to action. Assuming for the purposes of what follows that the generative process is determinstic, and expressing this with bold functions, we have for the observation model (omitting function arguments for simplicity):
+
 ```math
 \begin{align}
-y^{[i]} = \mathbf{g}^{[i]}(x^{[i]}) \\
+y^{[i]} = \mathbf{g}^{[i]} \Rightarrow \partial_a \mathbf{g}^{[i]}  = \partial_a x^{[i]} \partial_{x^{[i]}}  \mathbf{g}^{[i]} \\
+ \mathbf{g}^{[i]} \approx \partial_{x^{[0]}} \mathbf{g}^{[0]} x^{[i]} \\
 \Rightarrow \\
-\partial_a \mathbf{g}^{[i]}(x^{[i]})  = \partial_a x^{[i]} \partial_{x^{[i]}}  \mathbf{g}^{[i]}(x^{[i]}) \\
- \mathbf{g}^{[i]}(x^{[i]}) \approx \partial_{x^{[0]}} \mathbf{g}^{[0]}(x^{[0]}) x^{[i]} 
+\partial_a \mathbf{g}^{[i]}  \approx \partial_a x^{[i]} \partial_{x^{[0]}}  \mathbf{g}^{[0]}
+
+\end{align}
+```
+This can be supplemented with the relevant gradients from the dynamic model:
+
+```math
+\begin{align}
+x^{[i]} = \mathbf{f}^{[i-1]} \Rightarrow \partial_a x^{[i]} = \partial_a \mathbf{f}^{[i-1]} \\
+\mathbf{f}^{[i-1]} \approx \partial_{x^{[0]}} \mathbf{f}^{[0]} x^{[i-1]} = \partial_{x^{[0]}} \mathbf{f}^{[0]} \mathbf{f}^{[i-2]} \\
+\Rightarrow \\
+\partial_a x^{[i]} \approx \partial_{x^{[0]}} \mathbf{f}^{[0]} \partial_a \mathbf{f}^{[i-2]} = (\partial_{x^{[0]}} \mathbf{f}^{[0]})^2 \partial_a \mathbf{f}^{[i-3]} = (\partial_{x^{[0]}} \mathbf{f}^{[0]})^{i-1} \partial_a \mathbf{f}^{[0]} \\
+\Rightarrow \\
+\partial_a y^{[i]} \approx \partial_{x^{[0]}}  \mathbf{g}^{[0]} (\partial_{x^{[0]}} \mathbf{f}^{[0]})^{i-1} \partial_a \mathbf{f}^{[0]}
 
 \end{align}
 ```
