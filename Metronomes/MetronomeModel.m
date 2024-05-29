@@ -85,12 +85,12 @@ if OPTIONS.lc
 % of the radius as a way to modulate the sequencing (similar to the alpha
 % parameter).
 
-f = @(x) [(rho - norm(x(1:2*No))).*x(1:2*No)*xi + Jf*x(1:2*No);                                  % oscillators with limit cycles at radius rho
-        sig(sum(x(1:2:2*No)))*(zeta*x(2*No + (3:4))-x(2*No + (1:2)))/16;                         % current state of occluder
-        (1-sig(sum(x(1:2:2*No))+1))*(exp(-x(2*No + (3:4))).*(B{2}*smax(x(2*No + (1:2)))) - 1)/4; % next state of occluder
-        sig(sum(x(1:2:2*No)))*(gamma*x(2*No + (8:10))-x(2*No + (5:7)))/4;                        % current state
-        (1-sig(sum(x(1:2:2*No))+1))*(exp(-x(2*No + (8:10))).*(B{1}*smax(x(2*No + (5:7)))) - 1)/4;% next state
-        ([tgt 0]*smax(x(2*No + (5:7))) - x(end))/4];                                             % attractor dynamics
+f = @(x) [(rho - norm(x(1:2*No))).*x(1:2*No)*xi + Jf*x(1:2*No);                                     % oscillators with limit cycles at radius rho
+        sig(sum(x(1:2:2*No)))*(zeta*x(2*No + (3:4))-x(2*No + (1:2)))/16;                            % current state of occluder
+        (1-sig(sum(x(1:2:2*No))+1))*(exp(-x(2*No + (3:4))).*(B{2}*cn_smax(x(2*No + (1:2)))) - 1)/4; % next state of occluder
+        sig(sum(x(1:2:2*No)))*(gamma*x(2*No + (8:10))-x(2*No + (5:7)))/4;                           % current state
+        (1-sig(sum(x(1:2:2*No))+1))*(exp(-x(2*No + (8:10))).*(B{1}*cn_smax(x(2*No + (5:7)))) - 1)/4;% next state
+        ([tgt 0]*cn_smax(x(2*No + (5:7))) - x(end))/4];                                             % attractor dynamics
 
 else
 
@@ -98,19 +98,19 @@ else
 % Combine pendular dynamics with transition and attractor dynamics
 %--------------------------------------------------------------------------
 
-f = @(x) [Jf*x(1:2*No);                                                                          % oscillators as above
-        sig(sum(x(1:2:2*No)))*(zeta*x(2*No + (3:4))-x(2*No + (1:2)))/16;                         % current state of occluder
-        (1-sig(sum(x(1:2:2*No))+1))*(exp(-x(2*No + (3:4))).*(B{2}*smax(x(2*No + (1:2)))) - 1)/4; % next state of occluder
-        sig(sum(x(1:2:2*No)))*(gamma*x(2*No + (8:10))-x(2*No + (5:7)))/4;                        % current state
-        (1-sig(sum(x(1:2:2*No))+1))*(exp(-x(2*No + (8:10))).*(B{1}*smax(x(2*No + (5:7)))) - 1)/4;% next state
-        ([tgt 0]*smax(x(2*No + (5:7))) - x(end))/4];                                             % attractor dynamics
+f = @(x) [Jf*x(1:2*No);                                                                             % oscillators as above
+        sig(sum(x(1:2:2*No)))*(zeta*x(2*No + (3:4))-x(2*No + (1:2)))/16;                            % current state of occluder
+        (1-sig(sum(x(1:2:2*No))+1))*(exp(-x(2*No + (3:4))).*(B{2}*cn_smax(x(2*No + (1:2)))) - 1)/4; % next state of occluder
+        sig(sum(x(1:2:2*No)))*(gamma*x(2*No + (8:10))-x(2*No + (5:7)))/4;                           % current state
+        (1-sig(sum(x(1:2:2*No))+1))*(exp(-x(2*No + (8:10))).*(B{1}*cn_smax(x(2*No + (5:7)))) - 1)/4;% next state
+        ([tgt 0]*cn_smax(x(2*No + (5:7))) - x(end))/4];                                             % attractor dynamics
 
 end
 
 % Prediction of data (i.e., mode of likelihood)
 %--------------------------------------------------------------------------
 
-g = @(x) [smax(x(2*No+(1:2)))'*[exp(sum(x((1:No)*2 - 1)*cos(phi) - x((1:No)*2)*sin(phi)))/64;0]; x(end)];
+g = @(x) [cn_smax(x(2*No+(1:2)))'*[exp(sum(x((1:No)*2 - 1)*cos(phi) - x((1:No)*2)*sin(phi)))/64;0]; x(end)];
 
 % Precisions and orders of motion
 %--------------------------------------------------------------------------
@@ -207,7 +207,7 @@ ax.TickLength = [0 0];
 xlabel('Time (ms)')
 
 subplot(6,1,4:5)
-K = 1-[smax(M{1}(2*No+(1:2),:)); smax(M{1}(2*No+(3:4),:)); smax(M{1}(2*No+(5:7),:)); smax(M{1}(2*No+(8:10),:))];
+K = 1-[cn_smax(M{1}(2*No+(1:2),:)); cn_smax(M{1}(2*No+(3:4),:)); cn_smax(M{1}(2*No+(5:7),:)); cn_smax(M{1}(2*No+(8:10),:))];
 imagesc([t(1) t(end)]*ut,[1 10],K), clim([0 1]), colormap gray
 title('Targets and occluders')
 xlabel('Time (ms)')
@@ -235,10 +235,10 @@ figure('Name','Time-Frequency Analysis','Color','w')
 S = zeros(length(f),size(M{1},2));
 PSD = zeros(length(f),numel(M));
 for i = 1:numel(M)
-    s = fwt(sum(gradient(M{i}),1),f,32,ut/1000);
+    s = cn_fwt(sum(gradient(M{i}),1),f,32,ut/1000);
     S = S + squeeze(s);
     for j = 1:size(M{i},1)
-        PSD(:,i) = PSD(:,i) + psd_ls(M{i}(j,:),16,f,dt*ut/1000)';
+        PSD(:,i) = PSD(:,i) + cn_psd_ls(M{i}(j,:),16,f,dt*ut/1000)';
     end
 end
 
@@ -329,19 +329,19 @@ if OPTIONS.ani
         title('Behaviour')
 
         subplot(6,2,9)
-        imagesc(1-smax(M{1}(2*No+(5:6),k))'), colormap gray, axis off, clim([0 1])
+        imagesc(1-cn_smax(M{1}(2*No+(5:6),k))'), colormap gray, axis off, clim([0 1])
         title('Current target')
 
         subplot(6,2,11)
-        imagesc(1-smax(M{1}(2*No+(8:9),k))'), colormap gray, axis off, clim([0 1])
+        imagesc(1-cn_smax(M{1}(2*No+(8:9),k))'), colormap gray, axis off, clim([0 1])
         title('Planned next target')
 
         subplot(6,2,10)
-        imagesc(1-smax(M{1}(2*No+(1:2),k))'), colormap gray, axis off, clim([0 1])
+        imagesc(1-cn_smax(M{1}(2*No+(1:2),k))'), colormap gray, axis off, clim([0 1])
         title('Current occlusion')
 
         subplot(6,2,12)
-        imagesc(1-smax(M{1}(2*No+(3:4),k))'), colormap gray, axis off, clim([0 1])
+        imagesc(1-cn_smax(M{1}(2*No+(3:4),k))'), colormap gray, axis off, clim([0 1])
         title('Next occlusion')
 
         drawnow

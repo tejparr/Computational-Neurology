@@ -1,4 +1,5 @@
 function [Y,M,t,a] = ActiveFiltering(f,F,Pf,g,G,Pg,x0,m0,n,s,dt,T,a0,y,yc)
+% Format [Y,M,t,a] = ActiveFiltering(f,F,Pf,g,G,Pg,x0,m0,n,s,dt,T,a0,y,yc)
 % Generates a data timeseries Y and belief timeseries M with times t
 %
 % f, F       are the flow functions for model and process
