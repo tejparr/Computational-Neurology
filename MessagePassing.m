@@ -1,6 +1,6 @@
 function [Q, F, U] = MessagePassing(M,Y)
 % Message passing scheme for solving generic generative models.
-% FORMAT [Q, F] = MessagePassing(M,Y)
+% FORMAT [Q, F, U] = MessagePassing(M,Y)
 % M - Generative model
 % Y - Data
 % Q - Posterior marginals
@@ -170,7 +170,7 @@ for i = 1:Ni
                 AU    = ones(size(aU{j,find(CD(:,j),1,"first")}));
                 for k = 1:size(aU,1)
                     if CD(k,j) % if k is a child of j
-                        AU = AU.*aU{j,k};
+                        AU = mp_norm(AU.*aU{j,k});
                     end
                 end
                 Fa(j) = mp_log(A{j}'*AU);
@@ -221,7 +221,7 @@ for i = 1:Ni
                 AU    = ones(size(aU{j,find(CD(:,j),1,"first")}));
                 for k = 1:size(aU,1)
                     if CD(k,j) % if k is a child of j
-                        AU = AU.*aU{j,k};
+                        AU = mp_norm(AU.*aU{j,k});
                     end
                 end
 
@@ -281,7 +281,7 @@ for i = 1:Ni
             for j = 1:length(Gk)
                 for z = 1:size(aU,1)
                     if ismember(Gk(j),G{z})
-                        AUD = AUD.*aU{Gk(j),z};
+                        AUD = mp_norm(AUD.*aU{Gk(j),z});
                     end
                 end
             end
@@ -370,7 +370,7 @@ for i = 1:Ni
             AU = ones(size(aU{k,find(CD(:,k),1,"first")}));
             for j = 1:size(aU,1)
                 if CD(j,k) % if k is a parent of j
-                    AU = AU.*aU{k,j};
+                    AU = mp_norm(AU.*aU{k,j});
                 end
             end
             if isfield(A{k},'g') % If an alternative rule is given for computing marginals
@@ -436,7 +436,7 @@ for i = 1:Ni
                 AU = ones(size(aU{k,find(CD(:,k),1,"first")}));
                 for j = 1:size(aU,1)
                     if CD(j,k) % if k is a parent of j
-                        AU = AU.*aU{k,j};
+                        AU = mp_norm(AU.*aU{k,j});
                     end
                 end
                 if isfield(A{k},'g') % If an alternative rule is given for computing marginals
@@ -461,7 +461,7 @@ for i = 1:Ni
                 AU = ones(size(aU{k,find(CD(:,k),1,"first")}));
                 for j = 1:size(aU,1)
                     if CD(j,k) % if k is a parent of j
-                        AU = AU.*aU{k,j};
+                        AU = mp_norm(AU.*aU{k,j});
                     end
                 end
                 if isfield(A{k},'g') % If an alternative rule is given for computing marginals
@@ -510,12 +510,6 @@ end
 % Compute contribution to log marginal likelihood
 %--------------------------------------------------------------------------
 F = mp_log(aM'*Md);
-
-function A  = mp_norm(A)
-% normalisation of a probability tensor
-%--------------------------------------------------------------------------
-A           = rdivide(A,sum(A,1));
-A(isnan(A)) = 1/size(A,1);
 
 function d = mp_KL_dir(a,b)
 % KL-Divergence between Dirichlet distributions

@@ -3,7 +3,7 @@ function C = mp_dot(A,B,j)
 % Generalised (tensor) dot product with tensor A, array of vectors B, omit
 % dimensions j from sum.
 %--------------------------------------------------------------------------
-try J = (1:numel(B))~=j; catch, J = true(1,numel(B)); end
+try J = ~ismember(1:numel(B),j); catch, J = true(1,numel(B)); end
 
 C = A;
 
@@ -31,6 +31,6 @@ end
 
 C = squeeze(C);
 
-if size(C,2) > 1
+if size(C,2) > 1 && size(C,1) == 1
     C = C'; % Ensure output is column vector
 end
