@@ -164,92 +164,87 @@ di  = find(pri);          % Desending messages
 %--------------------------------------------------------------------------
 for i = 1:Ni
     Fa = zeros(numel(G),1);
-    % for j = 1:numel(G)
     for j = [ai di']
-        
-        update = mp_reactive(M,j,ai,di);
-
-        if update
-            if isempty(G{j})            % If factor j is a prior...
-                dU{j} = A{j};           %... then the descending message is the prior
-                AU    = ones(size(aU{j,find(CD(:,j),1,"first")}));
-                for k = 1:size(aU,1)
-                    if CD(k,j) % if k is a child of j
-                        AU = mp_norm(AU.*aU{j,k});
-                    end
+        if isempty(G{j})            % If factor j is a prior...
+            dU{j} = A{j};           %... then the descending message is the prior
+            AU    = ones(size(aU{j,find(CD(:,j),1,"first")}));
+            for k = 1:size(aU,1)
+                if CD(k,j) % if k is a child of j
+                    AU = mp_norm(AU.*aU{j,k});
                 end
-                Fa(j) = mp_log(A{j}'*AU);
-
-            elseif ~m(j)               % If factor j is a likelihood...
-                % Compile messages to factor
-                %----------------------------------------------------------
-                AU  = y{j + 1 - min(yi)};
-                DU = dU(G{j});
-                for k = 1:numel(DU)    % Augment with any implicit Dirac nodes
-                    if ~isempty(dirac{G{j}(k)})
-                        for l = setdiff(dirac{G{j}(k)}',j)
-                            DU{k} = DU{k}.*aU{G{j}(k),l};
-                        end
-                    end
-                end
-
-                %  Update messages from factor
-                %----------------------------------------------------------
-                if isfield(A{j},'f')
-                    [Ua, Ud, Fa(j)] = A{j}.f(AU,DU);    % Use arbitrary factor if specified
-                else
-                    [Ua, Ud, Fa(j)] = mp_Cat_messages(AU,DU,A{j});
-                    if M.MAP
-                        for k = 1:numel(Ua)
-                            Ua{k} = (Ua{k} == max(Ua{k}(:)));
-                        end
-                        Ud = (Ud == max(Ud(:)));
-                    end
-                end
-                for k = 1:length(G{j})
-                    aU{G{j}(k),j} = Ua{k};
-                end
-                dU{j} = Ud;
-            else
-                % Compile messages to factor
-                %----------------------------------------------------------
-                DU = dU(G{j});
-                for k = 1:numel(DU) % Augment with any implicit Dirac nodes
-                    if ~isempty(dirac{G{j}(k)})
-                        for l = setdiff(dirac{G{j}(k)}',j)
-                            DU{k} = DU{k}.*aU{G{j}(k),l};
-                        end
-                    end
-                end
-
-                % Product of all ascending messages to factor:
-                AU    = ones(size(aU{j,find(CD(:,j),1,"first")}));
-                for k = 1:size(aU,1)
-                    if CD(k,j) % if k is a child of j
-                        AU = mp_norm(AU.*aU{j,k});
-                    end
-                end
-
-                %  Update messages from factor
-                %----------------------------------------------------------
-                if isfield(A{j},'f')
-                    [Ua, Ud, Fa(j)] = A{j}.f(AU,DU);    % Use arbitrary factor if specified
-                else
-                    [Ua, Ud, Fa(j)] = mp_Cat_messages(AU,DU,A{j});
-                    if M.MAP
-                        for k = 1:numel(Ua)
-                            Ua{k} = (Ua{k} == max(Ua{k}(:)));
-                        end
-                        Ud = (Ud == max(Ud(:)));
-                    end
-                end
-                for k = 1:length(G{j})
-                    aU{G{j}(k),j} = Ua{k};
-                end
-                dU{j} = Ud;
             end
+            Fa(j) = mp_log(A{j}'*AU);
+
+        elseif ~m(j)               % If factor j is a likelihood...
+            % Compile messages to factor
+            %--------------------------------------------------------------
+            AU  = y{j + 1 - min(yi)};
+            DU = dU(G{j});
+            for k = 1:numel(DU)    % Augment with any implicit Dirac nodes
+                if ~isempty(dirac{G{j}(k)})
+                    for l = setdiff(dirac{G{j}(k)}',j)
+                        DU{k} = DU{k}.*aU{G{j}(k),l};
+                    end
+                end
+            end
+
+            %  Update messages from factor
+            %--------------------------------------------------------------
+            if isfield(A{j},'f')
+                [Ua, Ud, Fa(j)] = A{j}.f(AU,DU);    % Use arbitrary factor if specified
+            else
+                [Ua, Ud, Fa(j)] = mp_Cat_messages(AU,DU,A{j});
+                if M.MAP
+                    for k = 1:numel(Ua)
+                        Ua{k} = (Ua{k} == max(Ua{k}(:)));
+                    end
+                    Ud = (Ud == max(Ud(:)));
+                end
+            end
+            for k = 1:length(G{j})
+                aU{G{j}(k),j} = Ua{k};
+            end
+            dU{j} = Ud;
+        else
+            % Compile messages to factor
+            %--------------------------------------------------------------
+            DU = dU(G{j});
+            for k = 1:numel(DU) % Augment with any implicit Dirac nodes
+                if ~isempty(dirac{G{j}(k)})
+                    for l = setdiff(dirac{G{j}(k)}',j)
+                        DU{k} = DU{k}.*aU{G{j}(k),l};
+                    end
+                end
+            end
+
+            % Product of all ascending messages to factor:
+            AU    = ones(size(aU{j,find(CD(:,j),1,"first")}));
+            for k = 1:size(aU,1)
+                if CD(k,j) % if k is a child of j
+                    AU = mp_norm(AU.*aU{j,k});
+                end
+            end
+
+            %  Update messages from factor
+            %--------------------------------------------------------------
+            if isfield(A{j},'f')
+                [Ua, Ud, Fa(j)] = A{j}.f(AU,DU);    % Use arbitrary factor if specified
+            else
+                [Ua, Ud, Fa(j)] = mp_Cat_messages(AU,DU,A{j});
+                if M.MAP
+                    for k = 1:numel(Ua)
+                        Ua{k} = (Ua{k} == max(Ua{k}(:)));
+                    end
+                    Ud = (Ud == max(Ud(:)));
+                end
+            end
+            for k = 1:length(G{j})
+                aU{G{j}(k),j} = Ua{k};
+            end
+            dU{j} = Ud;
         end
     end
+
 
 
 % Compute evidence for model
@@ -548,18 +543,3 @@ d = sum(d(:));
 
 function a = mp_betaln(b)
 a = max(gammaln(sum(b)),-32) - max(sum(gammaln(b)),-32);
-
-function update = mp_reactive(M,j,ai,di)
-% Determines whether update is required in acyclic graph depending upon
-% whether any new information has reached this node
-%--------------------------------------------------------------------------
-
-if M.acyclic
-    if ismember(j,[di(:); ai(:)])
-        update = true;
-    else
-        update = false;
-    end
-else
-    update = true;
-end
