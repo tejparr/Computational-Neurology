@@ -33,6 +33,7 @@ try M.acyclic; catch, M.acyclic = 0;  end  % Is graph supplied acyclic?
 try M.Nmax;    catch, M.Nmax    = 32; end  % Max iterations
 try M.MAP;     catch, M.MAP     = 0;  end  % Use MAP states for learning
 try M.net;     catch, M.net     = 0;  end  % Plot network
+try M.Q;       catch, M.Q       = 1;  end  % Compute marginal probabilities
 
 Ni = M.Nmax; % Maximum number of iterations
 
@@ -61,8 +62,12 @@ try
     end
 
 catch
-    for i = 1:length(G)
-        A{i} = mp_norm(M.A{i});
+    for i = 1:numel(M.A)
+        if ~isfield(M.A{i},'f') && ~issparse(M.A{i})
+            A{i} = mp_norm(M.A{i});
+        else
+            A{i} = M.A{i};
+        end
     end
     if ~M.noprint
         disp('Dirichlet priors not specified: assume fixed parameters')
@@ -98,7 +103,7 @@ if iscell(Y)
 else
     y = cell(1,length(yi));
     for i = 1:numel(Y)
-        y{i} = zeros(Ln(yi(i)),1);
+        y{i} = sparse(zeros(Ln(yi(i)),1));
         y{i}(Y(i),1) = 1;
     end
 end
@@ -117,13 +122,12 @@ for i = 1:numel(G)
     dU{i} = ones(Ln(i),1);           % Messages from i
 end
 
-CD = zeros(N,N);
+CD = sparse(zeros(N,N));
 for k = 1:numel(G)
     for j = G{k}
         CD(k,j) = 1;                 % Conditional dependencies
     end
 end
-CD = logical(CD);
 
 % Identify implicit Dirac delta factors
 %--------------------------------------------------------------------------
@@ -139,7 +143,7 @@ if ~M.nograph
     Fmp = figure('Name','Message Passing','Color','w'); clf
     Ad      = CD + CD';                     % Adjacency matrix
     Lap     = diag(sum(Ad))  - Ad;          % Graph Laplacian 
-    [u,~]   = eig(Lap);                     % Eigenvectors 
+    [u,~]   = eigs(Lap);                    % Eigenvectors 
     u       = u(:,[2 3]);                   % Project to second and third
 end
 
@@ -160,7 +164,8 @@ di  = find(pri);          % Desending messages
 %--------------------------------------------------------------------------
 for i = 1:Ni
     Fa = zeros(numel(G),1);
-    for j = 1:numel(G)
+    % for j = 1:numel(G)
+    for j = [ai di']
         
         update = mp_reactive(M,j,ai,di);
 
@@ -322,14 +327,25 @@ for i = 1:Ni
 
     % Determine where messages have reached
     %----------------------------------------------------------------------
-    
-    CDi = CD^i;
-    ai  = find((~m)*CDi);           % Ascending messages
-    pri = zeros(numel(G),1);        % Prior index
-    for l = 1:numel(G)
-        pri(l) = isempty(G{l});
+   
+    aI = find(sum(CD(ai,:),1));
+    ai = aI;
+    dI = find(sum(CD(:,di),2));
+    di = dI;
+    for k = 1:length(ai)
+        if sum(CD(:,ai(k)),1)<2
+            aI(k) = 0;
+        end
     end
-    di  = find(CDi*pri);            % Desending messages
+    for k = 1:length(di)
+        if sum(CD(di(k),:),2)<2
+            dI(k) = 0;
+        end
+    end
+
+    ai = unique([ai  find(sum(CD(aI(aI>0),:),1))]);    % Ascending messages
+    di = unique([di; find(sum(CD(:,aI(aI>0)),2))]);    % Descending messages
+    
 
     % Graphics
     %----------------------------------------------------------------------
@@ -362,9 +378,9 @@ for i = 1:Ni
         ylabel('Log Evidence')
         title('Marginal likelihood')
         axis square
-
+        
         % Compute marginal probabilities for each state
-        %----------------------------------------------------------------------
+        %------------------------------------------------------------------
         Q.s = cell(numel(G) - length(yi),1);
         for k = 1:numel(Q.s)
             AU = ones(size(aU{k,find(CD(:,k),1,"first")}));
@@ -418,7 +434,7 @@ for i = 1:Ni
     % Convergence
     %----------------------------------------------------------------------
     % To terminate, we need all messages originating in roots or leaves to
-    % have reached a lead or root (respectively) and we need the log
+    % have reached a leaf or root (respectively) and we need the log
     % evidence to have converged.
 
     criterion  = [abs(dF)<1e-1, criterion(1:end-1)];
@@ -429,21 +445,26 @@ for i = 1:Ni
         if  M.acyclic
             U.a = aU;
             U.d = dU;
-            % Compute marginal probabilities for each state
-            %--------------------------------------------------------------
-            Q.s = cell(numel(G) - length(yi),1);
-            for k = 1:numel(Q.s)
-                AU = ones(size(aU{k,find(CD(:,k),1,"first")}));
-                for j = 1:size(aU,1)
-                    if CD(j,k) % if k is a parent of j
-                        AU = mp_norm(AU.*aU{k,j});
+
+            if M.Q
+                % Compute marginal probabilities for each state
+                %----------------------------------------------------------
+                Q.s = cell(numel(G) - length(yi),1);
+                for k = 1:numel(Q.s)
+                    AU = ones(size(aU{k,find(CD(:,k),1,"first")}));
+                    for j = 1:size(aU,1)
+                        if CD(j,k) % if k is a parent of j
+                            AU = mp_norm(AU.*aU{k,j});
+                        end
+                    end
+                    if isfield(A{k},'g') % If an alternative rule is given for computing marginals
+                        Q.s{k} = A{k}.g(dU{k},AU);
+                    else
+                        Q.s{k} = mp_softmax(mp_log(dU{k}) + mp_log(AU));
                     end
                 end
-                if isfield(A{k},'g') % If an alternative rule is given for computing marginals
-                    Q.s{k} = A{k}.g(dU{k},AU);
-                else
-                    Q.s{k} = mp_softmax(mp_log(dU{k}) + mp_log(AU));
-                end
+            else
+                Q.s = [];
             end
             return
         end
@@ -453,22 +474,26 @@ for i = 1:Ni
             if ~M.noprint
                 disp('Convergence')
             end
-
-            % Compute marginal probabilities for each state
-            %--------------------------------------------------------------
-            Q.s = cell(numel(G) - length(yi),1);
-            for k = 1:numel(Q.s)
-                AU = ones(size(aU{k,find(CD(:,k),1,"first")}));
-                for j = 1:size(aU,1)
-                    if CD(j,k) % if k is a parent of j
-                        AU = mp_norm(AU.*aU{k,j});
+            
+            if M.Q
+                % Compute marginal probabilities for each state
+                %----------------------------------------------------------
+                Q.s = cell(numel(G) - length(yi),1);
+                for k = 1:numel(Q.s)
+                    AU = ones(size(aU{k,find(CD(:,k),1,"first")}));
+                    for j = 1:size(aU,1)
+                        if CD(j,k) % if k is a parent of j
+                            AU = mp_norm(AU.*aU{k,j});
+                        end
+                    end
+                    if isfield(A{k},'g') % If an alternative rule is given for computing marginals
+                        Q.s{k} = A{k}.g(dU{k},AU);
+                    else
+                        Q.s{k} = mp_softmax(mp_log(dU{k}) + mp_log(AU));
                     end
                 end
-                if isfield(A{k},'g') % If an alternative rule is given for computing marginals
-                    Q.s{k} = A{k}.g(dU{k},AU);
-                else
-                    Q.s{k} = mp_softmax(mp_log(dU{k}) + mp_log(AU));
-                end
+            else
+                Q.s = [];
             end
             return
         end
