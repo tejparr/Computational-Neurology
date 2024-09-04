@@ -35,7 +35,7 @@ function DEMO_Metronomes
 
 close all
 rng default % For reproducibility
-SKIP = 1;   % Option to skip to comprehensive exploration of parameter space
+SKIP = 0;   % Option to skip to comprehensive exploration of parameter space
 
 % Simulation under default parameters
 %==========================================================================

@@ -406,7 +406,7 @@ for i = 1:Ni
         if M.net
             Ad      = CD + CD';                     % Adjacency matrix
             Lap     = diag(sum(Ad))  - Ad;          % Graph Laplacian
-            [u,~]   = eig(Lap);                     % Eigenvectors
+            [u,~]   = eigs(Lap);                    % Eigenvectors
             u       = u(:,[2 3]);                   % Project to second and third
             [ei, ej] = find(CD);                    % Edges
             subplot(2,2,2)

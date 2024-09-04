@@ -25,18 +25,18 @@ try thetaP = exp(P.thetaP);      catch, thetaP = 1;       end  % Log scale param
 try thetaE = exp(P.thetaE);      catch, thetaE = 4;       end  % Log scale parameter for likelihood (extero) precision
 try zeta  =  exp(P.zeta);        catch, zeta  =  0.5;     end  % Beliefs about persistence of occluder state
 try sigma = exp(P.sigma);        catch, sigma = 1;        end  % Beliefs about smoothness
-try delta = exp(P.delta);        catch, delta = 1/(4*pi); end  % Base rate for oscillators (assuming non-integers)
-
-if OPTIONS.lc
-    try rho   = exp(P.rho);      catch, rho   = 4;        end  % Radius if limit cycles used
-    try xi    = exp(P.xi);       catch, xi  = 1/128;      end  % Attraction to limit if limit cycle
-end
+try delta = exp(P.delta);        catch, delta = 20;       end  % Base rate for oscillators (assuming non-integers)
 
 No   = 4;               % Number of clocks
 dt   = 1/4;             % Length of timestep
 tT   = (0:Nt)*dt;       % Time
 T    = round(tT(end));  % Final time
 ut   = 4;               % Scale temporal units to ms
+
+if OPTIONS.lc
+    try rho   = exp(P.rho);           catch, rho   = 4;        end  % Radius if limit cycles used
+    try xi    = exp(P.xi)*ut/1000;    catch, xi    = 1/128;    end  % Attraction to limit if limit cycle (default is about 2 a.u./s)
+end
 
 %% Generative model
 %-------------------------------------------------------------------------- 
@@ -50,14 +50,14 @@ if OPTIONS.int      % use of integer multiples to create orthogonal oscillator s
 
     for i = 1:2:2*No
         Jf(i:i+1,i:i+1) = [0  i;
-                          -i  0]/16*pi;
+                          -i  0]*(ut*5)/1000;
     end
 
-else                    % or use of oscillators of only small frequency difference relative to one-another
+else                % or use of oscillators of only small frequency difference relative to one-another
 
     for i = 1:2:2*No
         Jf(i:i+1,i:i+1) = [0  i;
-                          -i  0]/(16*pi) + fliplr(diag([1 -1]))*delta;
+                          -i  0]*(ut*5)/1000 + fliplr(diag([1 -1]))*delta*ut/1000;
     end
 
 end
@@ -167,12 +167,12 @@ pY = zeros(size(Y{1}));
 pF = zeros(2,size(M{1},2));
 
 subplot(6,1,1)
-plot(t*ut,Y{1}), hold on
+plot(t,Y{1}), hold on
 for i = 1:size(M{1},2)
     pY(:,i) = g(M{1}(:,i));
     pF(:,i) = [sig(sum(M{1}((1:No)*2 - 1,i)));(1-sig(sum(M{1}((1:No)*2 - 1,i))+1))];
 end
-plot(t*ut,pY,'--k'), hold off
+plot(t,pY,'--k'), hold off
 title('Data and predictions')
 axis tight
 box off
@@ -182,7 +182,7 @@ ax.TickLength = [0 0];
 xlabel('Time (ms)')
 
 subplot(6,1,2)
-plot(t*ut,M{1}(1:2*No,:))
+plot(t,M{1}(1:2*No,:))
 title('Beliefs (modes) about oscillators')
 axis tight
 box off
@@ -196,8 +196,8 @@ C = zeros(16,length(t),3);
 C(:,:,1) = repmat(1-pF(1,:)/4,16,1,1);
 C(:,:,2) = repmat(1-pF(2,:)/4 -pF(1,:)/4,16,1,1);
 C(:,:,3) = repmat(1-pF(2,:)/4,16,1,1);
-image([t(1) t(end)]*ut,[0 1],C), hold on
-plot(t*ut,pF)
+image([t(1) t(end)],[0 1],C), hold on
+plot(t,pF)
 title('Beliefs about sequencing')
 axis xy
 box off
@@ -208,14 +208,14 @@ xlabel('Time (ms)')
 
 subplot(6,1,4:5)
 K = 1-[cn_smax(M{1}(2*No+(1:2),:)); cn_smax(M{1}(2*No+(3:4),:)); cn_smax(M{1}(2*No+(5:7),:)); cn_smax(M{1}(2*No+(8:10),:))];
-imagesc([t(1) t(end)]*ut,[1 10],K), clim([0 1]), colormap gray
+imagesc([t(1) t(end)],[1 10],K), clim([0 1]), colormap gray
 title('Targets and occluders')
 xlabel('Time (ms)')
 ax = gca;
 ax.TickLength = [0 0];
 
 subplot(6,1,6)
-plot(t*ut,a)
+plot(t,a)
 title('Action')
 axis tight
 box off
@@ -243,7 +243,7 @@ for i = 1:numel(M)
 end
 
 subplot(2,2,1)
-plot(t*ut,Y{1}(2,:))
+plot(t,Y{1}(2,:))
 title('Kinematics')
 xlabel('Time (ms)')
 ylabel('Position')
