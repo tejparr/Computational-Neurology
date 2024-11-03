@@ -46,6 +46,8 @@ p(\tilde{y}|\tilde{x}) = N(\tilde{g}(\tilde{x}),\tilde{\Pi}_y)
 ```
 
 [When complete, this section will include further detail on this scheme.]
+
+
 Generation of action depends upon optimisation of the free energy with respect to the data. This requires an expression of the gradients of the data with respect to action. Assuming for the purposes of what follows that the generative process is determinstic, and expressing this with bold functions, we have for the observation model (omitting function arguments for simplicity):
 
 ```math
