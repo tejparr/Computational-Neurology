@@ -82,7 +82,8 @@ for i = 1:4
     clear P
     P.gamma = gamma(i);                   % Reduce precision of policies
     Y = MetronomeModel(OPT,P,y);          % Construct generative model and invert
-    plot(t,Y{1}(2,:),'LineWidth',2,'Color',[i/5 1 i/5])
+    % plot(t,Y{1}(2,:),'LineWidth',2,'Color',[i/5 1 i/5])
+    plot(t,Y{1}(2,:),'LineWidth',2,'Color',[1/5 i/5 1/5])
 end
 axis tight
 box off
@@ -101,7 +102,8 @@ for i = 1:4
     clear P
     P.zeta = zeta(i);              % Confident in persistent occluder status
     Y = MetronomeModel(OPT,P,y);   % Construct generative model and invert
-    plot(t,Y{1}(2,:),'LineWidth',2,'Color',[1, (5-i)/5 (5-i)/5])
+    % plot(t,Y{1}(2,:),'LineWidth',2,'Color',[1, (5-i)/5 (5-i)/5])
+    plot(t,Y{1}(2,:),'LineWidth',2,'Color',[(5-i)/5, 1/5 1/5])
 end
 axis tight
 box off
@@ -120,7 +122,8 @@ for i = 1:4
     clear P
     P.alpha = alpha(i);                  % Blurring
     Y = MetronomeModel(OPT,P,y);         % Construct generative model and invert
-    plot(t,Y{1}(2,:),'LineWidth',2,'Color',[(5-i)/5 (5-i)/5 1])
+    % plot(t,Y{1}(2,:),'LineWidth',2,'Color',[(5-i)/5 (5-i)/5 1])
+    plot(t,Y{1}(2,:),'LineWidth',2,'Color',[1/5 1/5 (5-i)/5])
 end
 axis tight
 box off
