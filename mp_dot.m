@@ -23,7 +23,7 @@ for i = 1:numel(B)
         d    = ndims(C)-numel(B);
         ind    = circshift(size(C),1-i-d);
         ind(1) = 1;
-        b      = repmat(B{i},ind);
+        b      = repmat(full(B{i}),ind);
         b      = permute(b,circshift(dims,d+i-1));
         C      = sum(C.*b,i+d);
     end
