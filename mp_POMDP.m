@@ -279,7 +279,11 @@ elseif t > 1 % Recursive tree search over policies
         end
         for l = 1:size(V,1) % Loop over policies for next step
             for j = 1:numel(U{l}) % and over state factors
-                uk{l}{j} = u{j}(:,V(l,pomdp.dom.B(j).u));
+                if isempty(pomdp.dom.B(j).u)
+                    uk{l}{j} = u{j}(:,1);
+                else
+                    uk{l}{j} = u{j}(:,V(l,pomdp.dom.B(j).u));
+                end
             end
         end
         % Recursively evaluate policies

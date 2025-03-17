@@ -72,7 +72,7 @@ B{2} = eye(2);
 % Populate preferences
 %--------------------------------------------------------------------------
 C{1} = zeros(size(A{1},1),1);
-C{2} = [3;-3;0];
+C{2} = [3;-6;0];
 
 % Priors for paths
 %--------------------------------------------------------------------------
@@ -102,7 +102,7 @@ mdp.dom.A(2).u = [];
 mdp.T   = T;              % Number of time-steps
 mdp.gen = @mdp_tMaze_gen; % Generative process (i.e., simulation environment)
 mdp.s   = [1;1];          % True initial states of above
-mdp.N   = 1;              % Planning horizon
+mdp.N   = 2;              % Planning horizon
 
 % Active Inversion of generative model
 %--------------------------------------------------------------------------
