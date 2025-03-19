@@ -108,6 +108,10 @@ mdp.N   = 2;              % Planning horizon
 %--------------------------------------------------------------------------
 MDP = mp_POMDP(mdp);
 
+% Visualisation
+%--------------------------------------------------------------------------
+mdp_tMaze_plot(MDP)
+
 function [o,s] = mdp_tMaze_gen(s,u)
 % Function for generative process
 %--------------------------------------------------------------------------
@@ -123,4 +127,63 @@ elseif s(1)==1 || s(1)==4
     o(2,1) = 3;
 else
     o(2,1) = 2;
+end
+
+function mdp_tMaze_plot(MDP)
+figure('Color','w','Name','Maze Animation'); clf
+
+% Maze structure
+%--------------------------------------------------------------------------
+M = [0 0 0 0 0;
+     0 1 1 1 0;
+     0 0 1 0 0;
+     0 0 1 0 0;
+     0 0 0 0 0];
+
+% Coordinates for each location
+%--------------------------------------------------------------------------
+L = [3 3; 2 2; 4 2; 3 4 ;3 4];
+
+% Create continuous trajectories
+%--------------------------------------------------------------------------
+X = zeros(MDP.T,size(MDP.s,1));
+x = zeros(1+(MDP.T-1)*8,size(MDP.s,1));
+for t = 1:MDP.T
+    X(t,:) = L(MDP.o(1,t),:);
+end
+for j = 1:size(X,2)
+    x(:,j) = interp1(X(:,j),1:1/8:MDP.T);
+end
+
+% Animate
+%--------------------------------------------------------------------------
+
+for t = 1:MDP.T
+    for k = (1+(t-1)*8):(1+t*8)
+        % Plot maze
+        imagesc(M), colormap gray, axis equal, axis off, hold on
+        title('Maze')
+
+        % Plot beliefs about location
+        for j = 1:4
+            plot(L(j,1),L(j,2),'o','MarkerSize',16,'Color',[1,1 - MDP.Q{t,1}(j),1 - MDP.Q{t,1}(j)])
+        end
+
+        % Plot beliefs about context
+        plot(L(2,1),L(2,2),'.','Markersize',30,'Color',[1 - MDP.Q{t,2}(1),1,1 - MDP.Q{t,2}(1)])
+        plot(L(3,1),L(3,2),'.','Markersize',30,'Color',[1 - MDP.Q{t,2}(2),1,1 - MDP.Q{t,2}(2)])
+        text(L(4,1),L(4,2),'\leftarrow', 'Color',[1 -  MDP.Q{t,2}(1),1,1 -  MDP.Q{t,2}(1)],'FontWeight','bold', 'HorizontalAlignment', 'center','Interpreter','Tex')
+        text(L(4,1),L(4,2),'\rightarrow','Color',[1 -  MDP.Q{t,2}(2),1,1 -  MDP.Q{t,2}(2)],'FontWeight','bold', 'HorizontalAlignment', 'center','Interpreter','Tex')
+
+        % Plot location
+        if t < MDP.T
+            plot(x(k,1),x(k,2),'.r','MarkerSize',16) 
+            pause(0.1)
+            hold off
+        else
+            plot(x(end,1),x(end,2),'.r','MarkerSize',16)
+            pause(0.1)
+            break
+        end
+    end
 end
