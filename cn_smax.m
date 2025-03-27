@@ -1,5 +1,5 @@
-function x = CN_smax(y)
-% Format x = CN_smax(y)
+function x = cn_smax(y)
+% Format x = cn_smax(y)
 % Softmax (normalised exponential) function of the sort used to convert
 % unnormalised log probability values into a categorical probability
 % distribution.

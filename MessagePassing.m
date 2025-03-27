@@ -27,13 +27,15 @@ function [Q, F, U] = MessagePassing(M,Y)
 
 % Options
 %--------------------------------------------------------------------------
-try M.nograph; catch, M.nograph = 0;  end  % Plotting
-try M.noprint; catch, M.noprint = 0;  end  % Print iterations
-try M.acyclic; catch, M.acyclic = 0;  end  % Is graph supplied acyclic?
-try M.Nmax;    catch, M.Nmax    = 32; end  % Max iterations
-try M.MAP;     catch, M.MAP     = 0;  end  % Use MAP states for learning
-try M.net;     catch, M.net     = 0;  end  % Plot network
-try M.Q;       catch, M.Q       = 1;  end  % Compute marginal probabilities
+options = {'nograph', 'noprint', 'acyclic', 'Nmax', 'MAP', 'net', 'Q'};
+defaults = {0, 0, 0, 32, 0, 0, 1};
+for i = 1:length(options)
+    try
+        M.(options{i});
+    catch
+        M.(options{i}) = defaults{i};
+    end
+end
 
 Ni = M.Nmax; % Maximum number of iterations
 
@@ -42,7 +44,13 @@ Ni = M.Nmax; % Maximum number of iterations
 G  = M.G;    % Causal graph
 
 N  = numel(G);
-m  = zeros(1,N);
+
+% Pre-allocate arrays for better performance
+%--------------------------------------------------------------------------
+aU    = cell(N,N);     % Ascending messages
+dU    = cell(N,1);     % Descending messages
+dirac = cell(N,1);     % Dirac delta factors
+Fa    = zeros(N,1);    % Factor contributions to evidence
 
 % Normalise Dirichlet counts if using
 %--------------------------------------------------------------------------
@@ -60,7 +68,6 @@ try
     if ~M.noprint
         disp('Using Dirichlet priors as specified')
     end
-
 catch
     for i = 1:numel(M.A)
         if ~isfield(M.A{i},'f') && ~issparse(M.A{i})
@@ -76,7 +83,7 @@ end
 
 % Find number of levels for each variable
 %--------------------------------------------------------------------------
-Ln = zeros(numel(A),1);
+Ln = zeros(N,1);
 for i = 1:N
     if isfield(A{i},'f')    % If factor is defined in terms of a function
         Ln(i) = A{i}.Nd;    % Use dimension of descending message from factor
@@ -87,12 +94,9 @@ end
 
 % Classify variables as hidden states or outcomes
 %--------------------------------------------------------------------------
-for i = 1:N       % Loop over factors
-    for j = 1:N   % Loop over variables
-        if ismember(j,G{i})
-            m(j) = 1;
-        end
-    end
+m = zeros(1,N);
+for i = 1:N
+    m(G{i}) = 1;
 end
 yi = find(1-m);  % Indices of childless variables
 
@@ -110,11 +114,8 @@ end
 
 % Initialise messages
 %--------------------------------------------------------------------------
-aU = cell(numel(G),numel(G));        % Ascending messages
-dU = cell(numel(G),1);               % Descending messages
-
-for i = 1:numel(G)
-    for j = 1:numel(G)
+for i = 1:N
+    for j = 1:N
         if ismember(i,G{j})
             aU{i,j} = ones(Ln(i),1); % Messages from j to i
         end
@@ -122,33 +123,27 @@ for i = 1:numel(G)
     dU{i} = ones(Ln(i),1);           % Messages from i
 end
 
-CD = sparse(zeros(N,N));
-for k = 1:numel(G)
-    for j = G{k}
-        CD(k,j) = 1;                 % Conditional dependencies
-    end
-end
-
-% Identify implicit Dirac delta factors
+% Build conditional dependencies matrix
 %--------------------------------------------------------------------------
-dirac = cell(N,1);
+% Create indices for sparse matrix construction
+[ii, jj] = deal(cell(N,1));
+for k = 1:N
+    ii{k} = repmat(k, 1, length(G{k}));
+    jj{k} = G{k};
+end
+CD = sparse([ii{:}], [jj{:}], 1, N, N);
+
+% Identify implicit Dirac delta factors 
+%--------------------------------------------------------------------------
 for i = 1:N
     dirac{i} = find(CD(:,i));
 end
 
 % Figure (unless disabled)
 %--------------------------------------------------------------------------
-
 if ~M.nograph 
-    Fmp = figure('Name','Message Passing','Color','w'); clf
-    Ad      = CD + CD';                     % Adjacency matrix
-    Lap     = diag(sum(Ad))  - Ad;          % Graph Laplacian 
-    [u,~]   = eigs(Lap);                    % Eigenvectors 
-    u       = u(:,[2 3]);                   % Project to second and third
+    figure('Name','Message Passing','Color','w'); clf
 end
-
-criterion  = zeros(1,4); % For convergence in case of cyclic graphs
-Fi        = [];          % Record log marginal likelihood at each iteration 
 
 % Initialise message wavefronts
 %----------------------------------------------------------------------
@@ -162,8 +157,13 @@ di  = find(pri);          % Desending messages
 
 % Iterate through factors
 %--------------------------------------------------------------------------
+criterion = zeros(1,4);
+Fi        = zeros(1,Ni);
+
+% Main message passing loop
+%--------------------------------------------------------------------------
+F0 = 0;
 for i = 1:Ni
-    Fa = zeros(numel(G),1);
     for j = [ai di']
         if isempty(G{j})            % If factor j is a prior...
             dU{j} = A{j};           %... then the descending message is the prior
@@ -178,7 +178,7 @@ for i = 1:Ni
         elseif ~m(j)               % If factor j is a likelihood...
             % Compile messages to factor
             %--------------------------------------------------------------
-            AU  = y{j + 1 - min(yi)};
+            AU = y{j + 1 - min(yi)};
             DU = dU(G{j});
             for k = 1:numel(DU)    % Augment with any implicit Dirac nodes
                 if ~isempty(dirac{G{j}(k)})
@@ -217,8 +217,8 @@ for i = 1:Ni
                 end
             end
 
-            % Product of all ascending messages to factor:
-            AU    = ones(size(aU{j,find(CD(:,j),1,"first")}));
+            % Product of ascending messages
+            AU = ones(size(aU{j,find(CD(:,j),1,"first")}));
             for k = 1:size(aU,1)
                 if CD(k,j) % if k is a child of j
                     AU = mp_norm(AU.*aU{j,k});
@@ -245,27 +245,9 @@ for i = 1:Ni
         end
     end
 
-
-
-% Compute evidence for model
-%--------------------------------------------------------------------------
-% This works on the principle that we assume all priors are implicitly
-% conditioned upon a model. As such, the product of the ascending messages
-% from the priors play the role of a marginal likelihood. This is exact when
-% the model is acyclic, and approximate when there are cycles.
-
-    if ~exist('F0','var'), F0 = 0; end
-    
-% If Dirichlet priors are not specified...
-%--------------------------------------------------------------------------
-    if ~isfield(M,'a'), F = sum(Fa);
-
-% If Dirichlet priors are specified...
-%--------------------------------------------------------------------------
-% Compute the messages from the Dirichlet prior to the model (a ratio of
-% two beta functions) and pass messages from all other Dirichlet
-% distributions.
-
+    % Compute evidence
+    if ~isfield(M,'a')
+        F = sum(Fa);
     else
         F  = 0;
         ap = cell(numel(a),1); % Initialise posterior Dirichlet counts
@@ -285,12 +267,13 @@ for i = 1:Ni
                     end
                 end
             end
+            
             nA = size(a{k});
             if length(nA) > 1 % factor k is not a prior
                 AUD = repmat(AUD,[1,nA(2:end)]);
                 DUD = ones(size(a{k}));    % descending
                 for j = 1:length(Gk)
-                    si = G{Gk(j)}; 
+                    si = G{Gk(j)};
                     for z = 1:length(si)
                         dA = circshift(1:length(nA),z);
                         DU = permute(dU{si(z)},dA);
@@ -304,10 +287,8 @@ for i = 1:Ni
                 DUD = ones(size(a{k}));
             end
 
-            % Update posterior and compute contributions to marginal likelihood
-            %--------------------------------------------------------------
-            if ~length(Gk) == 0
-                da    = (a{k}>1/64).*AUD.*DUD;
+            if ~isempty(Gk)
+                da = (a{k}>1/64).*AUD.*DUD;
                 ap{k} = a{k} + da;
                 F = F - mp_KL_dir(ap{k},a{k});
             else
@@ -316,9 +297,12 @@ for i = 1:Ni
         end
         Q.a = ap;
     end
+
+    % Update convergence criteria
     dF = F - F0;
     F0 = F;
-    Fi = [Fi F];
+    Fi(i) = F;
+    criterion = [abs(dF)<1e-1, criterion(1:end-1)];
 
     % Determine where messages have reached
     %----------------------------------------------------------------------
@@ -327,24 +311,18 @@ for i = 1:Ni
     ai = aI;
     dI = find(sum(CD(:,di),2));
     di = dI;
-    for k = 1:length(ai)
-        if sum(CD(:,ai(k)),1)<2
-            aI(k) = 0;
-        end
-    end
-    for k = 1:length(di)
-        if sum(CD(di(k),:),2)<2
-            dI(k) = 0;
-        end
-    end
-
-    ai = unique([ai  find(sum(CD(aI(aI>0),:),1))]);    % Ascending messages
-    di = unique([di; find(sum(CD(:,aI(aI>0)),2))]);    % Descending messages
     
+    % Filter single connections
+    ai = ai(sum(CD(:,ai),1) >= 2);
+    di = di(sum(CD(di,:),2) >= 2);
+    
+    % Update wavefronts
+    ai = unique([ai find(sum(CD(aI(aI>0),:),1))]);
+    di = unique([di; find(sum(CD(:,aI(aI>0)),2))]);
 
     % Graphics
     %----------------------------------------------------------------------
-    if exist('Fmp','var')
+    if ~M.nograph
         
         subplot(2,2,4)
         title('Conditional Dependencies')
@@ -437,43 +415,14 @@ for i = 1:Ni
         if ~M.noprint
             fprintf('Iteration: %d. Message passing complete if acyclic graph. dF: %g\n', i,dF)
         end
-        if  M.acyclic
+        if M.acyclic || sum(criterion) == length(criterion)
             U.a = aU;
             U.d = dU;
-
-            if M.Q
-                % Compute marginal probabilities for each state
-                %----------------------------------------------------------
-                Q.s = cell(numel(G) - length(yi),1);
-                for k = 1:numel(Q.s)
-                    AU = ones(size(aU{k,find(CD(:,k),1,"first")}));
-                    for j = 1:size(aU,1)
-                        if CD(j,k) % if k is a parent of j
-                            AU = mp_norm(AU.*aU{k,j});
-                        end
-                    end
-                    if isfield(A{k},'g') % If an alternative rule is given for computing marginals
-                        Q.s{k} = A{k}.g(dU{k},AU);
-                    else
-                        Q.s{k} = mp_softmax(mp_log(dU{k}) + mp_log(AU));
-                    end
-                end
-            else
-                Q.s = [];
-            end
-            return
-        end
-        if sum(criterion) == length(criterion)
-            U.a = aU;
-            U.d = dU;
-            if ~M.noprint
-                disp('Convergence')
-            end
             
             if M.Q
-                % Compute marginal probabilities for each state
-                %----------------------------------------------------------
-                Q.s = cell(numel(G) - length(yi),1);
+                % Compute marginal probabilities
+                %---------------------------------------------------
+                Q.s = cell(N - length(yi),1);
                 for k = 1:numel(Q.s)
                     AU = ones(size(aU{k,find(CD(:,k),1,"first")}));
                     for j = 1:size(aU,1)
@@ -481,7 +430,7 @@ for i = 1:Ni
                             AU = mp_norm(AU.*aU{k,j});
                         end
                     end
-                    if isfield(A{k},'g') % If an alternative rule is given for computing marginals
+                    if isfield(A{k},'g')
                         Q.s{k} = A{k}.g(dU{k},AU);
                     else
                         Q.s{k} = mp_softmax(mp_log(dU{k}) + mp_log(AU));
@@ -496,7 +445,6 @@ for i = 1:Ni
         if ~M.noprint
             fprintf('Iteration: %d. Asc. messages at: [%s]. Desc. messages at: [%s]. dF: %g\n',i,num2str(unique(ai)),num2str(unique(di')),dF)
         end
-
     end
 end
 
