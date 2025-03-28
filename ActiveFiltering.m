@@ -19,56 +19,74 @@ try T = dt*(size(y,2)-1); catch,                 end
 try Ng = size(g(m0),1);   catch, Ng = size(g,1); end
 
 t = 0:dt:T;
+Nt = length(t);
 
 Nf = size(m0,1);
 NF = size(x0,1);
 
+% Pre-allocate all cell arrays
+%--------------------------------------------------------------------------
 g0 = cell(n,1);
 G0 = cell(n,1);
 f0 = cell(n,1);
 F0 = cell(n,1);
+X  = cell(n,1);
+Y  = cell(n,1);
+M  = cell(n,1);
 
-% Initialise generalised coordinates of motion for generative process and
-% model
-%--------------------------------------------------------------------------
-X     = cell(n,1);
-Y     = cell(n,1);
-M     = cell(n,1);
-X{1}  = zeros(NF,length(t)); X{1}(:,1) = x0;
-M{1}  = zeros(Nf,length(t)); M{1}(:,1) = m0;
+% Initialize first order states
+%-------------------------------------------------------------------------- 
+X{1} = zeros(NF,Nt); X{1}(:,1) = x0;
+M{1} = zeros(Nf,Nt); M{1}(:,1) = m0;
 
 if ~isempty(a0)
-    a    = zeros(1,length(t));
+    a = zeros(1,Nt);
     a(1) = a0;
 end
 
-try Y{1} = y; Y{1}(yc,:) = 0; catch, Y{1} = zeros(Ng,length(t)); end
-try f0{1} = f(M{1}(:,1));     catch, f0{1} = f;   end
+% Initialize Y with provided data or zeros
+try 
+    Y{1} = y; 
+    Y{1}(yc,:) = 0; 
+catch
+    Y{1} = zeros(Ng,Nt); 
+end
+
+% Pre-compute initial flow and Jacobian
+%--------------------------------------------------------------------------
+try 
+    f0{1} = f(M{1}(:,1));     
+catch
+    f0{1} = f;   
+end
 fJ = AF_dfdx(f,M{1}(:,1));
 
+% Initialize higher order states
+%--------------------------------------------------------------------------
 for j = 2:n
-    X{j}     = zeros(NF,length(t));
+    X{j} = zeros(NF,Nt);
     if exist('y','var')
         Y{j} = gradient(Y{j-1})/dt;
         Y{j}(yc,:) = 0;
     else
-        Y{j} = zeros(Ng,length(t));
+        Y{j} = zeros(Ng,Nt);
     end
-    M{j}     = zeros(Nf,length(t)); M{j}(:,1) = f0{j-1};
-    f0{j}    = fJ*M{j}(:,1);
+    M{j}      = zeros(Nf,Nt); 
+    M{j}(:,1) = f0{j-1};
+    f0{j}     = fJ*M{j}(:,1);
 end
 f0{end} = zeros(size(f0{end}));
 
-% Initialise free energy gradients and Hessian
+% Initialize autocorrelations - vectorized computation
 %--------------------------------------------------------------------------
+k = 0:(n-1);
+x = sqrt(2)*s;
+r = zeros(1,2*n-1);
+r(1+2*k) = cumprod(1-2*k)./(x.^(2*k));
 
-% Initialise autocorrelations 
+% Pre-compute autocorrelation matrix
 %--------------------------------------------------------------------------
-A          = zeros(n,n);
-k          = 0:(n-1);
-x          = sqrt(2)*s;
-r(1+2*k)   = cumprod(1-2*k)./(x.^(2*k));
-
+A = zeros(n,n);
 for z = 1:n
     A(:,z) = r((1:n) + z - 1);
     r      = -r;
@@ -82,17 +100,18 @@ D  = eye(n);
 D  = [D(2:n,:);zeros(1,n)];
 D  = sparse(kron(D,eye(Nf)));
 
-for i = 1:length(t)
-
-    % Derivatives for likelihood and flow functions
+% Main time loop
+%--------------------------------------------------------------------------
+for i = 1:Nt-1
+    % Compute derivatives for likelihood and flow functions
     %----------------------------------------------------------------------
-
-    % First order of motion
-    %----------------------------------------------------------------------
-    g0{1} = g(M{1}(:,i));         G0{1} = G(X{1}(:,i));
-    gJ    = AF_dfdx(g,M{1}(:,i)); GJ    = AF_dfdx(G,X{1}(:,i));
+    g0{1} = g(M{1}(:,i));         
+    G0{1} = G(X{1}(:,i));
+    gJ    = AF_dfdx(g,M{1}(:,i)); 
+    GJ    = AF_dfdx(G,X{1}(:,i));
     f0{1} = f(M{1}(:,i));
     fJ    = AF_dfdx(f,M{1}(:,i));
+
     if isempty(a0)
         F0{1} = F(X{1}(:,i));
         FJ    = AF_dfdx(F,X{1}(:,i));
@@ -113,42 +132,38 @@ for i = 1:length(t)
     end
     f0{end} = zeros(size(f0{end}));
 
-    % Generate data and higher order generalised states [noise free for now]
-    %----------------------------------------------------------------------
-    for k = 1:(n-1)
-        if ~exist('y','var'), Y{k}(:,i)   = G0{k};
-        else 
-             Y{k}(yc,i)                   = G0{k}(yc);
-        end
-
-    end
-    if ~exist('y','var'), Y{n}(:,i) = G0{n};
-    else 
-        Y{n}(yc,i)                  = G0{n}(yc);
-    end
+    % Generate data and higher order states
     
-    if i == length(t)
-        return
+    if ~exist('y','var')
+        for k = 1:n
+            Y{k}(:,i) = G0{k};
+        end
+    else
+        for k = 1:n
+            Y{k}(yc,i) = G0{k}(yc);
+        end
     end
 
-    % Free energy gradients and Hessian
+    % Compute free energy gradients and Hessian
     %----------------------------------------------------------------------
     yY = zeros(Ng*n,1);
     m  = zeros(Nf*n,1);
-    for j = 1:n
-        yY((j-1)*Ng + (1:Ng),:) = Y{j}(:,i);
-        m((j-1)*Nf + (1:Nf),:)  = M{j}(:,i);
+    for k = 1:n
+        yY((k-1)*Ng + (1:Ng),:) = Y{k}(:,i);
+        m((k-1)*Nf + (1:Nf),:)  = M{k}(:,i);
     end
     
     DfJ   = kron(eye(n),fJ);
     DgJ   = kron(eye(n),gJ);
-    dFdx  =  (DfJ - D)'*Pf*(D*m - cat(1,f0{:}))  + DgJ'*Pg*(yY - cat(1,g0{:}));
+    dFdx  = (DfJ - D)'*Pf*(D*m - cat(1,f0{:})) + DgJ'*Pg*(yY - cat(1,g0{:}));
     dFdxx = -(DfJ - D)'*Pf*(DfJ - D) - DgJ'*Pg*DgJ;
 
     % Update beliefs
     %----------------------------------------------------------------------
     m = m + pinv(dFdxx + D)*(expm(dt*(dFdxx + D)) - eye(Nf*n))*(dFdx + D*m);
 
+    % Reshape and store updated beliefs
+    %----------------------------------------------------------------------
     for k = 1:n
         M{k}(:,i+1) = m((k-1)*Nf + (1:Nf),:);
     end
@@ -156,55 +171,53 @@ for i = 1:length(t)
     % And action
     %----------------------------------------------------------------------
     if ~isempty(a0)
-        dyda   = zeros(Ng*n,length(a0));
+        dyda = zeros(Ng*n,length(a0));
         for k = 2:n
-            dyda((Ng*(k-1)) + (1:Ng),:)   = GJ*(FJ^(k-2))*FJa;
+            dyda((Ng*(k-1)) + (1:Ng),:) = GJ*(FJ^(k-2))*FJa;
         end
-        dFda   = - dyda'*Pg*(yY - cat(1,g0{:}));
-        dFdaa  = - dyda'*Pg*dyda;
-        dFdax  = - dyda'*Pg*kron(ones(n,1),GJ);
-    end
-
-    % Update action and states
-    %----------------------------------------------------------------------
-    if isempty(a0)
-        X{1}(:,i+1) = X{1}(:,i) + (expm(dt*FJ) - eye(Nf))*pinv(FJ)*F0{1};
-    else
+        dFda  = -dyda'*Pg*(yY - cat(1,g0{:}));
+        dFdaa = -dyda'*Pg*dyda;
+        dFdax = -dyda'*Pg*kron(ones(n,1),GJ);
+        
+        % Update action and states
+        %------------------------------------------------------------------
         Jxa = [FJ FJa;dFdax dFdaa];
         Xa          = [X{1}(:,i); a(:,i)] + pinv(Jxa)*(expm(dt*Jxa) - eye(size(Jxa,1)))*[F0{1};dFda];
         X{1}(:,i+1) = Xa(1:NF,1);
         a(:,i+1)    = Xa(NF+1:end,1);
+    else
+        % Update states without action
+        X{1}(:,i+1) = X{1}(:,i) + (expm(dt*FJ) - eye(Nf))*pinv(FJ)*F0{1};
     end
 end
 
 function J = AF_dfdx(f,x,a,n)
 % Numerical derivative with respect to argument n using finite difference method
-
-if nargin>2
+%--------------------------------------------------------------------------
+if nargin > 2
     if n == 1
         J = zeros(size(f(x,a),1),size(x,1));
-
+        dx = zeros(size(x));
         for i = 1:size(x,1)
-            dx     = zeros(size(x));
-            dx(i)  = exp(-4);
+            dx(i) = exp(-4);
             J(:,i) = (f(x+dx,a) - f(x-dx,a))/(2*exp(-4));
+            dx(i) = 0;
         end
-    elseif n == 2
+    else
         J = zeros(size(f(x,a),1),size(a,1));
-
+        da = zeros(size(a));
         for i = 1:size(a,1)
-            da     = zeros(size(a));
             da(i)  = exp(-4);
             J(:,i) = (f(x,a+da) - f(x,a-da))/(2*exp(-4));
+            da(i)  = 0;
         end
     end
-
 else
     J = zeros(size(f(x),1),size(x,1));
-
+    dx = zeros(size(x));
     for i = 1:size(x,1)
-        dx     = zeros(size(x));
         dx(i)  = exp(-4);
         J(:,i) = (f(x+dx) - f(x-dx))/(2*exp(-4));
+        dx(i)  = 0;
     end
 end
