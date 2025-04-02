@@ -39,7 +39,9 @@ D\tilde{x} = \tilde{f}(\tilde{x}) + \tilde{\omega}_x \\
 ```
 The importance of the $D$ matrix can be seen in the following graphic, which shows that its absence, when performing gradient flows in a moving reference frame, results in a lag behind the desired (moving) extremum:
 
+<p align="center">
 <img src="Graphics/GenCoor.gif"/>
+</p>
 
 These equations can be expressed in terms of probability distributions:
 ```math
