@@ -1,6 +1,6 @@
 # Internal Clocks
 
-This folder includes a set of demos that relate to a model using internal clocks or metronomes to determine the temporal dynamics of actions. These were constructed for the paper 'Inferring When To Move' (Parr, Oswal, and Manohar).
+This folder includes a set of demos that relate to a model using internal clocks or metronomes to determine the temporal dynamics of actions. These were constructed for the paper <a href="https://www.sciencedirect.com/science/article/pii/S0149763424004536"> 'Inferring When To Move'</a> (Parr, Oswal, and Manohar).
 
 ### Background
 The simulations developed in the DEMO_Metronomes.m routine are designed to show how we might make use of internal clocks (or metronomes) to synchronise our behaviour to events in the world. This is of particular relevance for conditions such as Parkinson's disease or Lewy Body Dementia in which everything from movement to thought can be slowed. 
