@@ -12,7 +12,7 @@ This repository deals with computational models with relevance to neurological s
 3. Related Models
 
 ## 1 - Internal Clocks
-This demo is based on the idea that we can make use of internal clocks to synchronise our behaviour to events in the world. This is of particular relevance for conditions such as Parkinson's disease or Lewy Body Dementia in which everything from movement to thought can be slowed. The demo depends upon an Active Bayesian Filtering scheme (c.f., <a href="https://en.wikipedia.org/wiki/Generalized_filtering">Generalised Filtering</a>) and simulates timed movements between two targets. 
+This demo is based on the idea that we can make use of internal clocks to synchronise our behaviour to events in the world. This is of particular relevance for conditions such as Parkinson's disease or Lewy Body Dementia in which everything from movement to thought can be slowed. The full results are described in the paper <a href="https://www.sciencedirect.com/science/article/pii/S0149763424004536"> 'Inferring When To Move'</a>. The demo depends upon an Active Bayesian Filtering scheme (c.f., <a href="https://en.wikipedia.org/wiki/Generalized_filtering">Generalised Filtering</a>) and simulates timed movements between two targets. 
 
 <img src="Metronomes/Graphics/Animation Default.gif"/>
 
