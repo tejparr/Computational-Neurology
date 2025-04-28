@@ -112,8 +112,10 @@ MDP = mp_POMDP(mdp);
 %--------------------------------------------------------------------------
 mdp_tMaze_plot(MDP)
 
-function [o,s] = mdp_tMaze_gen(s,u)
-% Function for generative process
+function [o,s] = mdp_tMaze_gen(s,u,~,~)
+% Function for generative process. The arguments are states, actions, and 
+% posterior predictions. The final argument would be the pomdp structure
+% itself, in case any additional parameters of relevance are needed
 %--------------------------------------------------------------------------
 if nargout > 1
     if s(1)==1 || s(1)==4

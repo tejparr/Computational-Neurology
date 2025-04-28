@@ -39,7 +39,7 @@ T = pomdp.T;                                  % Time horizon
 
 % Unpack optional fields
 %--------------------------------------------------------------------------
-if isfield(pomdp,'E'), E = pomdp.E;       end % Prior over paths
+if isfield(pomdp,'E'),   E = pomdp.E;     end % Prior over paths
 
 % Dirichlet priors (duplicate of above if only Dirichlet priors specified)
 if isfield(pomdp,'a'),   a = pomdp.a;     end % likelihood
@@ -93,12 +93,37 @@ u = zeros(length(Ne),T-1);   % Initialise choice array
 pomdp.P = cell(T,1);         % Path probabilities
 pomdp.Q = cell(T,numel(D));  % State probabilties              
 
+% If mandatory states are specified, ensure their order is optimised
+%--------------------------------------------------------------------------
+if isfield(pomdp,'h')
+    pomdp.h = mp_pomdp_order(pomdp.h,pomdp.B,D);
+end
+
 % Iterate through time
 %==========================================================================
 for t = 1:T    
 
     Q = cell(size(V,1),1);  % Posterior marginals conditioned upon controllable paths
     U = cell(size(V,1),1);  % Messages conditioned upon controllable paths
+
+    try   % If available, use outcomes provided
+        y = pomdp.o(:,t);
+    catch % Otherwise, simulate/obtain outcomes from generative function
+        if t > 1
+            Qo      = cell(size(A)); % Posterior predictive distribution
+            for g = 1:numel(Qo)
+                Qo{g}      = mp_dot(pomdp.A{g},D(pomdp.dom.A(g).s));
+            end
+            s       = pomdp.s(:,t-1);
+            [y,s]   = pomdp.gen(s,u(:,t-1),Qo,pomdp);
+            pomdp.s(:,t) = s;
+            pomdp.o(:,t) = y;
+        else
+            s       = pomdp.s(:,1);
+            y       = pomdp.gen(s,[],[],pomdp);
+            pomdp.o(:,t) = y;
+        end
+    end
 
     % Iterate over (controllable) paths
     %----------------------------------------------------------------------
@@ -112,21 +137,7 @@ for t = 1:T
 
         M.A = [E(:);D(:);B(:);A(:);O(:)];
         
-        try   % If available, use outcomes provided
-            Y = pomdp.o(:,t);
-        catch % Otherwise, simulate/obtain outcomes from generative function
-            if t > 1
-                s       = pomdp.s(:,t-1);
-                [Y,s]   = pomdp.gen(s,u(:,t-1));
-                pomdp.s(:,t) = s;
-                pomdp.o(:,t) = Y;
-            else
-                s       = pomdp.s;
-                Y       = pomdp.gen(s);
-                pomdp.o(:,t) = Y;
-            end
-        end
-        Y = [Y; ones(length(ind.B),1)]; % To handle childless nodes
+        Y = [y; ones(length(ind.B),1)]; % To handle childless nodes
 
         % Solve model
         %------------------------------------------------------------------
@@ -134,7 +145,7 @@ for t = 1:T
         U{k}        = Uk.d(ind.B);  
         Q{k}        = Qk;
     end
-    
+
     % Equip controllable paths with priors and evaluate posteriors
     %----------------------------------------------------------------------
     if isfield(pomdp,'path')
@@ -155,12 +166,14 @@ for t = 1:T
         end
     end
 
+    if isfield(pomdp,'h') % If multiple mandatory states specified, then check whether reached. If so, move on to next state.
+        pomdp.h = mp_pomdp_h(pomdp.h,D);
+    end
+
     % Select actions
     %----------------------------------------------------------------------
     % Here the actions are selected directly by sampling from the
-    % distribution over paths. An alternative option not yet implemented
-    % will be to select actions that minimise the difference between
-    % anticipated and realised outcomes.
+    % distribution over paths. 
     vi = find(rand<cumsum(P),1,'first');    
     u(:,t) = V(vi,:)';
 
@@ -232,6 +245,11 @@ for i = 1:size(V,2)
     E  = E.*pomdp.E{i}(V(:,i));   
 end
 
+if isfield(pomdp,'h') % Account for mandatory states (i.e., use inductive inference)
+    H = mp_induction(pomdp.h,pomdp.B,U);
+    E = E.*H;
+end
+
 Ho = zeros(size(E));
 HA = zeros(size(E));
 C  = zeros(size(E));
@@ -266,6 +284,14 @@ elseif t > 1 % Recursive tree search over policies
     %----------------------------------------------------------------------
     u     = cell(size(U{k})); % Initialise messages for next time-step
     uk    = U;
+
+    %======================================================================
+    % Account for possible observations we might have made at this step and
+    % the subsequent belief-update
+    %----------------------------------------------------------------------
+    % Ou    = mp_POMDP_comb((cellfun(@(x)size(x,1),pomdp.A))'); % Outcome combinations
+    %=======================================================================
+
     for k = find(P)' % Loop over plausible policies
         for j = 1:numel(U{k}) % And the associated state factors
             B = pomdp.B{j};
@@ -294,4 +320,166 @@ elseif t > 1 % Recursive tree search over policies
     P = mp_softmax(G);
 else
     return
+end
+
+function h = mp_pomdp_h(h,Q)
+% Function that checks whether the mandatory states have been reached. If
+% so, it moves on to the next state. 
+%--------------------------------------------------------------------------
+p = 1;
+for i = find(~cellfun(@isempty,h))'
+    p = p*Q{i}(h{i}(1));
+end
+if p > 0.9
+    for i = find(~cellfun(@isempty,h))'
+        h{i}(1) = [];
+    end
+end
+
+function h = mp_pomdp_order(h,B,Q)
+% Function that optimises the order of the mandatory states
+%--------------------------------------------------------------------------
+
+% First, find the lengths of the shortest paths between mandatory states
+%--------------------------------------------------------------------------
+H     = h(~cellfun(@isempty,h));
+B     = B(~cellfun(@isempty,h));
+Q     = Q(~cellfun(@isempty,h));
+L     = zeros(length(H{1})+1);
+
+for i = 1:numel(H)
+    [~,d]       = max(Q{i});
+    H{i}(end+1) = d;
+end
+
+Qi = cell(size(Q));
+Hj = cell(size(H));
+
+for i = 1:numel(H{1})
+    for j = 1:numel(H{1})
+        for k = 1:numel(H)
+            Hj{k} = H{k}(j);
+            Qi{k} = zeros(size(Q{k}));
+            Qi{k}(H{k}(i)) = 1;
+        end
+        [~,n] = mp_induction(Hj,B,{Qi});
+        L(i,j) = n-1;
+    end
+end
+
+G = L(1:end-1,1:end-1) == 1;
+
+% Prune graph to ensure is bipartite (minimum pruning)
+[~,k] = sort(sum(G),'descend');
+for i = k
+    j = 1;
+    while sum(G(:,i))>2
+        [~,k] = sort(sum(G),'descend');
+        G(i,k(j)) = 0;
+        G(k(j),i) = 0;
+        L(i,k(j)) = L(i,k(j)) + 1/2;
+        L(k(j),i) = L(k(j),i) + 1/2;
+        j = j + 1;
+    end
+end
+[C,d] = mp_graph_cluster(G);
+rH    = mp_subgoal(H,L,C,d);
+
+% Repackage in original h structure:
+%--------------------------------------------------------------------------
+h(~cellfun(@isempty,h)) = rH;
+
+function [H,n] = mp_induction(h,B,Q)
+% Function to compute inductive priors over paths
+%--------------------------------------------------------------------------
+% Note: Currently, this assumes the transition probabilities factorise
+% over state factors.
+
+H   = ones(numel(Q),1);
+ind = find(~cellfun(@isempty,h));
+
+b = cell(size(ind));
+k = zeros(size(ind));
+for i = 1:length(ind)
+    k(i) = h{ind(i)}(1);
+    b{i} = sum(B{ind(i)},3:length(size(B{ind(i)})))> 1/8;
+end
+
+z = 0;
+n = 0;
+while z == 0 && n < 64
+    q = ones(numel(Q),1);
+    for j = 1:numel(Q)
+        for i = 1:length(ind)
+            K = zeros(size(b{i},1),1);
+            K(k(i)) = 1;
+            w = Q{j}{ind(i)}'*((b{i}')^n)*K;
+            q(j) = q(j)*w;
+        end
+    end
+    if sum(q)>0
+        H = q > 0;
+        z = 1;
+    end
+    n = n + 1;
+end
+
+function [C,D] = mp_graph_cluster(A)
+% Examine graph structure based upon adjacency matrix A, returning cluster
+% memberships C and allowable starting vertices D
+%-------------------------------------------------------------------------
+d     = sum(A);                       % Degree of each vertex
+L     = diag(d) - A;                  % Graph Laplacian
+[E,V] = eig(L);                       % Eigendecomposition
+c     = find(abs(diag(V))<1/16)';     % Find non-communicating graph clusters
+C     = cell(size(c));                % Initialise cluster memberships
+D     = cell(size(c));                % Initialise possible starting vertices
+for i = c
+    C{i} = find(abs(E(:,i)) > 1/16);  % Determine members of each cluster
+    if any(d(C{i})==1)
+        D{i} = C{i}(d(C{i})==1);      % For clusters with roots/leaves, start there
+    else
+        D{i} = C{i};                  % Otherwise all start locations equally viable
+    end
+end
+
+function rH = mp_subgoal(H,L,C,d)
+% Takes a set of subgoals H, a distance matrix L, graph clusters C, and 
+% leaf/root nodes d, and returns a re-ordered list of subgoals rH.
+%--------------------------------------------------------------------------
+
+% Pre-allocate reordered states
+%--------------------------------------------------------------------------
+rH = cell(size(H));
+for i = 1:numel(rH)
+    rH{i} = zeros(length(H{i})-1,1);
+end
+
+% Reorganise into a set of subgoals
+%--------------------------------------------------------------------------
+L        = L + diag(Inf*ones(length(H{1}),1)); % Preclude point attractors
+L(end,:) = Inf;                                % and preclude return to start
+j        = length(rH{1});                      % but set this as initial state
+r        = 0;                                  % members left in this cluster
+Id       = ones(size(L,1),1)*Inf;
+for i = 1:numel(d)
+    Id(d{i}) = 0; 
+end
+Ic       = zeros(size(L,1),1);
+for i = 1:length(rH{1})
+    if r == 0
+    % pick cluster (degree 1 node if available)
+        [~,j] = min(L(:,j(1)) + Id);
+        c     = find(cellfun(@(x)ismember(j(1),x),d));
+        Ic    = ones(size(Ic))*Inf;
+        Ic(C{c}) = 0;
+        r     = length(C{c})-1;
+    else
+        [~,j] = min(L(:,j(1)) + Ic);
+        r     = r - 1; 
+    end
+    for k = 1:numel(rH)
+        rH{k}(i) = H{k}(j(1));
+    end
+    L(j(1),:) = Inf;
 end
