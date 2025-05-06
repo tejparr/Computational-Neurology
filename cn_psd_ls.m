@@ -1,4 +1,4 @@
-function PSD = psd_ls(x,n,f,dt)
+function PSD = cn_psd_ls(x,n,f,dt)
 % Format PSD = psd_ls(x,n,f,dt)
 % Power-spectral density estimation based upon least squares solution to
 % the following autoregressive model of order n for frequencies f:

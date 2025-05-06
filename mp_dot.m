@@ -3,7 +3,23 @@ function C = mp_dot(A,B,j)
 % Generalised (tensor) dot product with tensor A, array of vectors B, omit
 % dimensions j from sum.
 %--------------------------------------------------------------------------
-try J = ~ismember(1:numel(B),j); catch, J = true(1,numel(B)); end
+
+% Input validation
+if nargin < 2
+    error('At least two input arguments required');
+end
+
+if ~iscell(B)
+    error('B must be a cell array of vectors');
+end
+
+
+% Handle optional j parameter
+if nargin < 3
+    J = true(1,numel(B));
+else
+    J = ~ismember(1:numel(B),j);
+end
 
 C = A;
 
@@ -17,15 +33,15 @@ C = A;
 % end
 %--------------------------------------------------------------------------
 
+% Pre-allocate dimensions array
+dims = 1:ndims(C);
+d    = ndims(C)-numel(B);
+
 for i = 1:numel(B)
     if J(i)
-        dims = 1:ndims(C);
-        d    = ndims(C)-numel(B);
-        ind    = circshift(size(C),1-i-d);
-        ind(1) = 1;
-        b      = repmat(full(B{i}),ind);
-        b      = permute(b,circshift(dims,d+i-1));
-        C      = sum(C.*b,i+d);
+        b = full(B{i});
+        b = permute(b, circshift(dims,d+i-1));
+        C = sum(bsxfun(@times, C, b), i+d);
     end
 end
 
@@ -34,3 +50,6 @@ C = squeeze(C);
 if size(C,2) > 1 && size(C,1) == 1
     C = C'; % Ensure output is column vector
 end
+
+
+

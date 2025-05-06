@@ -112,17 +112,6 @@ else
     end
 end
 
-% Initialise messages
-%--------------------------------------------------------------------------
-for i = 1:N
-    for j = 1:N
-        if ismember(i,G{j})
-            aU{i,j} = ones(Ln(i),1); % Messages from j to i
-        end
-    end
-    dU{i} = ones(Ln(i),1);           % Messages from i
-end
-
 % Build conditional dependencies matrix
 %--------------------------------------------------------------------------
 % Create indices for sparse matrix construction
@@ -132,6 +121,18 @@ for k = 1:N
     jj{k} = G{k};
 end
 CD = sparse([ii{:}], [jj{:}], 1, N, N);
+
+
+% Initialise messages
+%--------------------------------------------------------------------------
+for i = 1:N
+    for j = 1:N
+        if CD(j,i)
+            aU{i,j} = ones(Ln(i),1); % Messages from j to i
+        end
+    end
+    dU{i} = ones(Ln(i),1);           % Messages from i
+end
 
 % Identify implicit Dirac delta factors 
 %--------------------------------------------------------------------------
@@ -312,10 +313,6 @@ for i = 1:Ni
     dI = find(sum(CD(:,di),2));
     di = dI;
     
-    % Filter single connections
-    ai = ai(sum(CD(:,ai),1) >= 2);
-    di = di(sum(CD(di,:),2) >= 2);
-    
     % Update wavefronts
     ai = unique([ai find(sum(CD(aI(aI>0),:),1))]);
     di = unique([di; find(sum(CD(:,aI(aI>0)),2))]);
@@ -447,37 +444,6 @@ for i = 1:Ni
         end
     end
 end
-
-function [Ma, Md, F] = mp_Cat_messages(aM,dM,A)
-% Computation of ascending and descending messages from categorical factor
-% FORMAT [Ma, Md] = mp_Cat_messages(aM,dM,A)
-% aM - ascending messages to factor    (from children)
-% dM - descending messages to factor   (from parents and coparents)
-% Ma - ascending messages from factor  (to parents and coparents)
-% Md - descending messages from factor (from children)
-% A  - probability tensor whose first dimension relates to children, with
-%      subsequent dimensions relating to (co)parents.
-%__________________________________________________________________________
-% This function takes messages to a categorical probability factor and
-% computes messages from this factor. By default, a belief-propagation
-% scheme is assumed. The messages are normalised for numerical stability.
-%__________________________________________________________________________
-
-% Compute outgoing descending messages
-%--------------------------------------------------------------------------
-Md = mp_norm(mp_dot(A,dM));
-
-% Compute outgoing ascending messages
-%--------------------------------------------------------------------------
-Ma = cell(size(dM));
-
-for i = 1:numel(Ma)
-    Ma{i} = mp_norm(mp_dot(A,[{aM},dM(:)'],i+1));
-end
-
-% Compute contribution to log marginal likelihood
-%--------------------------------------------------------------------------
-F = mp_log(aM'*Md);
 
 function d = mp_KL_dir(a,b)
 % KL-Divergence between Dirichlet distributions

@@ -52,7 +52,10 @@ if isfield(pomdp,'dom'), dom = pomdp.dom; end % domains
 try con = pomdp.con; catch, try con = 1:numel(E); catch, con = 1:numel(e); end,  end % controllable paths
 
 % Planning horizon
-try N = pomdp.N; catch, N = 1;            end % assume 1-step ahead unless otherwise specified
+try N = pomdp.N;     catch, N = 1;   end % assume 1-step ahead unless otherwise specified
+
+% Option to factorise over time
+try fac = pomdp.fac; catch, fac = 0; end % assume no factorisation over time unless specified
 
 % Identify indices of each variable type
 %--------------------------------------------------------------------------
@@ -62,10 +65,32 @@ try ind.D = (1:numel(D)) + ind.E(end); catch, ind.D = (1:numel(d)) + ind.E(end);
 try ind.B = (1:numel(B)) + ind.D(end); catch, ind.B = (1:numel(b)) + ind.D(end); end % Indices to identify all next states
 try ind.A = (1:numel(A)) + ind.B(end); catch, ind.A = (1:numel(a)) + ind.B(end); end % Indices to identify all observations
 
+if fac 
+% Identify indices for vertical message passing
+%--------------------------------------------------------------------------
+    jnd.E = [];
+    jnd.B = [];
+    try jnd.D = (1:numel(D));              catch, jnd.D = (1:numel(d));              end % Indices to identify all states
+    try jnd.A = (1:numel(A)) + jnd.D(end); catch, jnd.A = (1:numel(a)) + jnd.D(end); end % Indices to identify all observations
+
+% Identify indices for horizontal message passing
+%-------------------------------------------------------------------------
+    knd.A = [];
+    try knd.E = 1:numel(E);                catch, knd.E = 1:numel(e);                end % Indices to identify all paths
+    try knd.D = (1:numel(D)) + knd.E(end); catch, knd.D = (1:numel(d)) + knd.E(end); end % Indices to identify all states
+    try knd.B = (1:numel(B)) + knd.D(end); catch, knd.B = (1:numel(b)) + knd.D(end); end % Indices to identify all next states
+
+end
+
 % Construct causal graph
 %==========================================================================
-G = mp_POMDP_G(ind, dom);       % Create graph from indices and domains
-M.G = G;                        % Equip model with graph
+if ~fac
+    G    = mp_POMDP_G(ind, dom);       % Create graph from indices and domains
+    M.G  = G;                          % Equip model with graph
+else
+    jG   = mp_POMDP_G(jnd, dom);       % Create graph from indices and domains for vertical model
+    kG   = mp_POMDP_G(knd, dom);       % Create graph from indices and domains for horizontal model
+end
 
 % Construct uninformative factors to deal with childless nodes
 %--------------------------------------------------------------------------
@@ -93,12 +118,6 @@ u = zeros(length(Ne),T-1);   % Initialise choice array
 pomdp.P = cell(T,1);         % Path probabilities
 pomdp.Q = cell(T,numel(D));  % State probabilties              
 
-% If mandatory states are specified, ensure their order is optimised
-%--------------------------------------------------------------------------
-if isfield(pomdp,'h')
-    pomdp.h = mp_pomdp_order(pomdp.h,pomdp.B,D);
-end
-
 % Iterate through time
 %==========================================================================
 for t = 1:T    
@@ -125,26 +144,65 @@ for t = 1:T
         end
     end
 
+    if fac
+        % Construct and solve vertical model
+        %-----------------------------------------------------------
+        M.A = [D(:);A(:)];
+        M.G = jG;
+        jQ  = MessagePassing(M,y); 
+        D   = jQ.s;
+
+        if t == 1
+            % If mandatory states are specified, ensure their order is optimised
+            %--------------------------------------------------------
+            if isfield(pomdp,'h')
+                pomdp.h = mp_pomdp_order(pomdp.h,pomdp.B,D);
+            end
+        end    
+    end
+
     % Iterate over (controllable) paths
-    %----------------------------------------------------------------------
-    for k = 1:size(V,1)
+    %------------------------------------------------------------------
+    for k = 1:size(V,1) 
 
         % Construct model
-        %------------------------------------------------------------------
+        %--------------------------------------------------------------
         for j = con
             E{j} = mp_POMDP_oh(Ne(j),V(k,j)); % Set controllable path
         end
 
-        M.A = [E(:);D(:);B(:);A(:);O(:)];
+        if ~fac
+            M.A = [E(:);D(:);B(:);A(:);O(:)];
         
-        Y = [y; ones(length(ind.B),1)]; % To handle childless nodes
+            Y = [y; ones(length(ind.B),1)]; % To handle childless nodes
 
-        % Solve model
-        %------------------------------------------------------------------
-        [Qk, ~, Uk] = MessagePassing(M,Y);
-        U{k}        = Uk.d(ind.B);  
-        Q{k}        = Qk;
+            % Solve model
+            %------------------------------------------------------------
+            [Qk, ~, Uk] = MessagePassing(M,Y);
+            U{k}        = Uk.d(ind.B);  
+            Q{k}        = Qk;
+        else
+            % Solve horizontal model
+            %-----------------------------------------------------------
+            M.A = [E(:);D(:);B(:);O(:)];
+            M.G = kG;
+            Y = ones(length(knd.B),1);    % To handle childless nodes
+            [Qk, ~, Uk] = MessagePassing(M,Y);
+            U{k}        = Uk.d(knd.B);  
+            for j = 1:numel(U{k})
+                U{k}{j} = mp_norm(U{k}{j});
+            end
+            Q{k} = Qk;
+        end
     end
+
+    if ~fac && t == 1
+        % If mandatory states are specified, ensure their order is optimised
+        %------------------------------------------------------------------
+        if isfield(pomdp,'h')
+            pomdp.h = mp_pomdp_order(pomdp.h,pomdp.B,Q{1}.s(ind.D));
+        end
+    end    
 
     % Equip controllable paths with priors and evaluate posteriors
     %----------------------------------------------------------------------
@@ -174,8 +232,10 @@ for t = 1:T
     %----------------------------------------------------------------------
     % Here the actions are selected directly by sampling from the
     % distribution over paths. 
-    vi = find(rand<cumsum(P),1,'first');    
-    u(:,t) = V(vi,:)';
+    
+    % vi = find(rand<cumsum(P));    
+    [~,vi] = max(P);
+    u(:,t) = V(vi(1),:)';
 
 end
 %--------------------------------------------------------------------------
@@ -186,9 +246,11 @@ function G = mp_POMDP_G(ind, dom)
 % This function takes the indices of variables in a POMDP model and
 % constructs a causal graph, making use of the domain factors as provided
 %--------------------------------------------------------------------------
-
-G = cell(ind.B(end)+length(ind.B),1);
-
+if ~isempty(ind.B)
+    G = cell(ind.B(end) + length(ind.B),1);
+else
+    G = cell(length(ind.D) + length(ind.A),1);
+end
 % Connect hidden states at t = 1 to outcomes at t = 1
 %--------------------------------------------------------------------------
 for i = ind.A
@@ -214,7 +276,7 @@ end
 % Equip childless nodes with uninformative outcome
 %--------------------------------------------------------------------------
 for i = 1:length(ind.B)
-    G{ind.A(end) + i} = ind.B(i);
+    G{length(ind.A) + length(ind.B) + length(ind.D) + length(ind.E) + i} = ind.B(i);
 end
 
 function U = mp_POMDP_comb(Ne)
@@ -250,17 +312,19 @@ if isfield(pomdp,'h') % Account for mandatory states (i.e., use inductive infere
     E = E.*H;
 end
 
-Ho = zeros(size(E));
-HA = zeros(size(E));
-C  = zeros(size(E));
+Ho = -32*ones(size(E));
+HA = -32*zeros(size(E));
+C  = -32*zeros(size(E));
 
 for k = 1:size(V,1)
-    for j = 1:numel(pomdp.A)
-        Qo    = mp_dot(pomdp.A{j},U{k}(pomdp.dom.A(j).s)); % Predictive posterior
-        C(k)  = C(k) + Qo'*pomdp.C{j};                     % Expected utility
-        Ho(k) = Ho(k) - Qo'*mp_log(Qo);                    % Predictive entropy
-        Ha    = -sum(pomdp.A{j}.*mp_log(pomdp.A{j}),1);    % Conditional entropy
-        HA(k) = HA(k) + mp_dot(Ha,U{k}(pomdp.dom.A(j).s)); % Ambiguity
+    if E(k) > max(E)/8
+        for j = 1:numel(pomdp.A)
+            Qo    = mp_dot(pomdp.A{j},U{k}(pomdp.dom.A(j).s)); % Predictive posterior
+            C(k)  = C(k) + Qo'*pomdp.C{j};                     % Expected utility
+            Ho(k) = Ho(k) - Qo'*mp_log(Qo);                    % Predictive entropy
+            Ha    = -sum(pomdp.A{j}.*mp_log(pomdp.A{j}),1);    % Conditional entropy
+            HA(k) = HA(k) + mp_dot(Ha,U{k}(pomdp.dom.A(j).s)); % Ambiguity
+        end
     end
 end
 
@@ -370,18 +434,51 @@ end
 G = L(1:end-1,1:end-1) == 1;
 
 % Prune graph to ensure is bipartite (minimum pruning)
-[~,k] = sort(sum(G),'descend');
-for i = k
-    j = 1;
-    while sum(G(:,i))>2
-        [~,k] = sort(sum(G),'descend');
-        G(i,k(j)) = 0;
-        G(k(j),i) = 0;
-        L(i,k(j)) = L(i,k(j)) + 1/2;
-        L(k(j),i) = L(k(j),i) + 1/2;
-        j = j + 1;
+%-----------------------------------------------------
+
+% First, identify and remove triangles:
+[g,k]   = sort(diag(G^3),'ascend');
+k       = k(g>0);
+k(end)  = [];
+while ~isempty(k)
+    [~,~,j] = intersect(find(G(:,k(1))),k);
+    j       = k(min(j));
+    G(k(1),j) = 0;
+    G(j,k(1)) = 0;
+    L(k(1),j) = L(k(1),j) + 1/2;
+    L(j,k(1)) = L(j,k(1)) + 1/2;
+    if G(k(1),:)*G*G(:,k(1)) == 0
+        k(1) = [];
     end
 end
+
+% Then duplicate remaining nodes with degree > 2 and distribute their edges
+p = sum(ceil(bsxfun(@max,sum(G)-2,0)/2));
+G = padarray(G,p*ones(1,2),0,'pre');
+L = padarray(L,p*ones(1,2),0,'pre');
+for i = 1:numel(H)
+    H{i} = padarray(H{i},p,0,'pre');
+end
+
+for n = p:-1:1
+    [~,k] = sort(sum(G),'descend');
+    [~,j] = sort(sum(G*diag(G(:,k(1)))),'descend');
+
+    for i = 1:numel(H)
+        H{i}(n) = H{i}(k(1));
+    end
+
+    L(n,:)         = L(k(1),:);
+    L(:,n)         = L(:,k(1));
+    L(k(1),j(1:2)) = L(k(1),j(1:2)) + 1/2;
+    L(j(1:2),k(1)) = L(j(1:2),k(1)) + 1/2;
+
+    G(n,j(1:2))    = G(k(1),j(1:2));
+    G(j(1:2),n)    = G(j(1:2),k(1));    
+    G(k(1),j(1:2)) = 0;
+    G(j(1:2),k(1)) = 0;
+end
+
 [C,d] = mp_graph_cluster(G);
 rH    = mp_subgoal(H,L,C,d);
 
@@ -408,13 +505,13 @@ end
 z = 0;
 n = 0;
 while z == 0 && n < 64
-    q = ones(numel(Q),1);
+    q = true(numel(Q),1);
     for j = 1:numel(Q)
         for i = 1:length(ind)
             K = zeros(size(b{i},1),1);
             K(k(i)) = 1;
-            w = Q{j}{ind(i)}'*((b{i}')^n)*K;
-            q(j) = q(j)*w;
+            w = Q{j}{ind(i)}'*((b{i}')^n)*K >= 1/2;
+            q(j) = q(j) && w;
         end
     end
     if sum(q)>0
@@ -431,11 +528,11 @@ function [C,D] = mp_graph_cluster(A)
 d     = sum(A);                       % Degree of each vertex
 L     = diag(d) - A;                  % Graph Laplacian
 [E,V] = eig(L);                       % Eigendecomposition
-c     = find(abs(diag(V))<1/16)';     % Find non-communicating graph clusters
+c     = find(abs(diag(V))<1/64)';     % Find non-communicating graph clusters
 C     = cell(size(c));                % Initialise cluster memberships
 D     = cell(size(c));                % Initialise possible starting vertices
 for i = c
-    C{i} = find(abs(E(:,i)) > 1/16);  % Determine members of each cluster
+    C{i} = find(abs(E(:,i)) > 1/64);  % Determine members of each cluster
     if any(d(C{i})==1)
         D{i} = C{i}(d(C{i})==1);      % For clusters with roots/leaves, start there
     else
