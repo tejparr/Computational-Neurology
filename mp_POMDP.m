@@ -455,7 +455,7 @@ end
 % Then duplicate remaining nodes with degree > 2 and distribute their edges
 p = sum(ceil(bsxfun(@max,sum(G)-2,0)/2));
 G = padarray(G,p*ones(1,2),0,'pre');
-L = padarray(L,p*ones(1,2),0,'pre');
+L = padarray(L,p*ones(1,2),64,'pre');
 for i = 1:numel(H)
     H{i} = padarray(H{i},p,0,'pre');
 end
@@ -470,6 +470,8 @@ for n = p:-1:1
 
     L(n,:)         = L(k(1),:);
     L(:,n)         = L(:,k(1));
+    L(k(1),n)      = 1/2;
+    L(n,k(1))      = 1/2;
     L(k(1),j(1:2)) = L(k(1),j(1:2)) + 1/2;
     L(j(1:2),k(1)) = L(j(1:2),k(1)) + 1/2;
 
@@ -525,16 +527,33 @@ function [C,D] = mp_graph_cluster(A)
 % Examine graph structure based upon adjacency matrix A, returning cluster
 % memberships C and allowable starting vertices D
 %-------------------------------------------------------------------------
-d     = sum(A);                       % Degree of each vertex
-L     = diag(d) - A;                  % Graph Laplacian
-[E,V] = eig(L);                       % Eigendecomposition
-c     = find(abs(diag(V))<1/64)';     % Find non-communicating graph clusters
-C     = cell(size(c));                % Initialise cluster memberships
-D     = cell(size(c));                % Initialise possible starting vertices
-for i = c
-    C{i} = find(abs(E(:,i)) > 1/64);  % Determine members of each cluster
-    if any(d(C{i})==1)
-        D{i} = C{i}(d(C{i})==1);      % For clusters with roots/leaves, start there
+da    = sum(A);                          % Degree of all vertices
+sc    = find(da==0);                     % Find singleton clusters
+[~,ind] = setdiff(1:size(A,1),sc);       % Indices for recovery of original order
+A(sc,:) = [];                            % Remove from graph
+A(:,sc) = [];                            % ...
+d     = sum(A);                          % Degree of each vertex
+L     = diag(d) - A;                     % Graph Laplacian
+[E,~] = eig(L);                          % Eigendecomposition
+c     = 1;
+while any(sum(abs(E(:,c))>0,2)==0)
+    c = 1:(c(end)+1);
+end
+[~,c] = unique((abs(E(:,c))>0)','rows'); % Remove duplicate clusters
+C     = cell(length(c)+length(sc),1);    % Initialise cluster memberships
+D     = cell(length(c)+length(sc),1);    % Initialise possible starting vertices
+
+for i = 1:length(c)
+    C{i} = ind(abs(E(:,c(i))) > 0);   % Determine members of each cluster
+end
+
+for i = 1:length(sc)
+    C{i+length(c)} = sc(i);
+    D{i+length(c)} = sc(i);
+end
+for i = 1:length(c)
+    if any(da(C{i})==1)
+        D{i} = C{i}(da(C{i})==1);     % For clusters with roots/leaves, start there
     else
         D{i} = C{i};                  % Otherwise all start locations equally viable
     end

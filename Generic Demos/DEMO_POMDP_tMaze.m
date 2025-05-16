@@ -110,6 +110,7 @@ MDP = mp_POMDP(mdp);
 
 % Visualisation
 %--------------------------------------------------------------------------
+mp_pomdp_belief_plot(MDP)
 mdp_tMaze_plot(MDP)
 
 function [o,s] = mdp_tMaze_gen(s,u,~,~)
