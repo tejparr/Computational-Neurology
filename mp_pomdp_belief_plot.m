@@ -22,7 +22,7 @@ if nargin < 2
         Snames{i} = ['State ' num2str(i)];
     end
     Onames = cell(Ng,1);
-    for i = 1:Nf
+    for i = 1:Ng
         Onames{i} = ['Outcome ' num2str(i)];
     end
 end
