@@ -97,9 +97,13 @@ end
 O = cell(length(ind.B),1);
 for i = 1:numel(O)
     try
-        O{i} = ones(1,size(B{i},1));
+        O{i} = ones(1,B{i}.Nd);
     catch
-        O{i} = ones(1,size(b{i},1));
+        try
+            O{i} = ones(1,size(B{i},1));
+        catch
+            O{i} = ones(1,size(b{i},1));
+        end
     end
 end
 
@@ -131,7 +135,11 @@ for t = 1:T
         if t > 1
             Qo      = cell(size(A)); % Posterior predictive distribution
             for g = 1:numel(Qo)
-                Qo{g}      = mp_dot(pomdp.A{g},D(pomdp.dom.A(g).s));
+                if isfield(A{g},'f')
+                    [~,Qo{g}] = pomdp.A{g}.f(1,D(pomdp.dom.A(g).s));
+                else
+                    Qo{g}      = mp_dot(pomdp.A{g},D(pomdp.dom.A(g).s));
+                end
             end
             s       = pomdp.s(:,t-1);
             [y,s]   = pomdp.gen(s,u(:,t-1),Qo,pomdp);
@@ -170,9 +178,50 @@ for t = 1:T
         for j = con
             E{j} = mp_POMDP_oh(Ne(j),V(k,j)); % Set controllable path
         end
+        
+        % Prune dependencies based on current beliefs
+        %--------------------------------------------------------------
+        % Where the transitions are specified by multiple alternative
+        % function handles, this part of the routine selects the functional
+        % handle that is most probable based upon the prior information
+        % available.
+
+        rB = B;
+        if ~fac
+            rG = G;
+        else
+            rG = kG;
+        end
+
+        ib  = cellfun(@(x)isfield(x,'i'),B);  % Find context-dependent Bs
+        if ~isempty(ib)
+            for i = find(ib)'
+                rD = D(pomdp.dom.B(i).s(B{i}.i.d));
+                z  = -ones(numel(B{i}.i.v),1);
+                for jf = find(~cellfun(@isempty,B{i}.i.v))
+                    z(jf) = 1;
+                    for js = 1:numel(rD)
+                        z(jf) = z(jf)*rD{js}(B{i}.i.v{jf}(js));
+                    end
+                end
+                if any(z>0.9) % If there is evidence for a non-empty criterion
+                    rB{i}.f = B{i}.f{z>1/length(z)};
+                else          % Otherwise set B to be equal to the function for the empty criterion
+                    rB{i}.f = B{i}.f{z<0};
+                end
+                if ~fac
+                    rG{ind.B(i)}(2:end-1) = [];
+                else
+                    rG{knd.B(i)}(2:end-1) = [];
+                end
+            end
+        end
+    
+        M.G = rG;
 
         if ~fac
-            M.A = [E(:);D(:);B(:);A(:);O(:)];
+
+            M.A = [E(:);D(:);rB(:);A(:);O(:)];
         
             Y = [y; ones(length(ind.B),1)]; % To handle childless nodes
 
@@ -184,8 +233,7 @@ for t = 1:T
         else
             % Solve horizontal model
             %-----------------------------------------------------------
-            M.A = [E(:);D(:);B(:);O(:)];
-            M.G = kG;
+            M.A = [E(:);D(:);rB(:);O(:)];
             Y = ones(length(knd.B),1);    % To handle childless nodes
             [Qk, ~, Uk] = MessagePassing(M,Y);
             U{k}        = Uk.d(knd.B);  
@@ -313,17 +361,21 @@ if isfield(pomdp,'h') % Account for mandatory states (i.e., use inductive infere
 end
 
 Ho = -32*ones(size(E));
-HA = -32*zeros(size(E));
-C  = -32*zeros(size(E));
+HA = -32*ones(size(E));
+C  = -32*ones(size(E));
 
 for k = 1:size(V,1)
     if E(k) > max(E)/8
         for j = 1:numel(pomdp.A)
-            Qo    = mp_dot(pomdp.A{j},U{k}(pomdp.dom.A(j).s)); % Predictive posterior
-            C(k)  = C(k) + Qo'*pomdp.C{j};                     % Expected utility
-            Ho(k) = Ho(k) - Qo'*mp_log(Qo);                    % Predictive entropy
-            Ha    = -sum(pomdp.A{j}.*mp_log(pomdp.A{j}),1);    % Conditional entropy
-            HA(k) = HA(k) + mp_dot(Ha,U{k}(pomdp.dom.A(j).s)); % Ambiguity
+            if isfield(pomdp.A{j},'f')
+                [~,Qo,~,Ha] = pomdp.A{j}.f(1,U{k}(pomdp.dom.A(j).s)); % Predictive posterior and conditional entropy
+            else
+                Qo     = mp_dot(pomdp.A{j},U{k}(pomdp.dom.A(j).s));   % Predictive posterior
+                Ha     = -sum(pomdp.A{j}.*mp_log(pomdp.A{j}),1);      % Conditional entropy
+            end
+            C(k)  = C(k) + Qo'*pomdp.C{j};                            % Expected utility
+            Ho(k) = Ho(k) - Qo'*mp_log(Qo);                           % Predictive entropy
+            HA(k) = HA(k) + mp_dot(Ha,U{k}(pomdp.dom.A(j).s));        % Ambiguity
         end
     end
 end
@@ -432,6 +484,7 @@ for i = 1:numel(H{1})
 end
 
 G = L(1:end-1,1:end-1) == 1;
+G = G - diag(diag(G));
 
 % Prune graph to ensure is bipartite (minimum pruning)
 %-----------------------------------------------------
@@ -439,7 +492,10 @@ G = L(1:end-1,1:end-1) == 1;
 % First, identify and remove triangles:
 [g,k]   = sort(diag(G^3),'ascend');
 k       = k(g>0);
-k(end)  = [];
+if ~isempty(k)
+    k(end)  = [];
+end
+
 while ~isempty(k)
     [~,~,j] = intersect(find(G(:,k(1))),k);
     j       = k(min(j));
@@ -521,42 +577,6 @@ while z == 0 && n < 64
         z = 1;
     end
     n = n + 1;
-end
-
-function [C,D] = mp_graph_cluster(A)
-% Examine graph structure based upon adjacency matrix A, returning cluster
-% memberships C and allowable starting vertices D
-%-------------------------------------------------------------------------
-da    = sum(A);                          % Degree of all vertices
-sc    = find(da==0);                     % Find singleton clusters
-[~,ind] = setdiff(1:size(A,1),sc);       % Indices for recovery of original order
-A(sc,:) = [];                            % Remove from graph
-A(:,sc) = [];                            % ...
-d     = sum(A);                          % Degree of each vertex
-L     = diag(d) - A;                     % Graph Laplacian
-[E,~] = eig(L);                          % Eigendecomposition
-c     = 1;
-while any(sum(abs(E(:,c))>0,2)==0)
-    c = 1:(c(end)+1);
-end
-[~,c] = unique((abs(E(:,c))>0)','rows'); % Remove duplicate clusters
-C     = cell(length(c)+length(sc),1);    % Initialise cluster memberships
-D     = cell(length(c)+length(sc),1);    % Initialise possible starting vertices
-
-for i = 1:length(c)
-    C{i} = ind(abs(E(:,c(i))) > 0);   % Determine members of each cluster
-end
-
-for i = 1:length(sc)
-    C{i+length(c)} = sc(i);
-    D{i+length(c)} = sc(i);
-end
-for i = 1:length(c)
-    if any(da(C{i})==1)
-        D{i} = C{i}(da(C{i})==1);     % For clusters with roots/leaves, start there
-    else
-        D{i} = C{i};                  % Otherwise all start locations equally viable
-    end
 end
 
 function rH = mp_subgoal(H,L,C,d)
