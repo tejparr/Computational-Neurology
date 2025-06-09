@@ -2,11 +2,31 @@ function POMDP = mp_POMDP(pomdp)
 % Format POMDP = mp_POMDP(pomdp)
 % This function solves a Partially Observed Markov Decision Process
 % generative model using the MessagePassing.m belief-propagation scheme.
-% The pomdp structure is formulated as follows:
+% Please see DEMO_POMDP_tMaze.m in the Generic Demos folder for an example
+% as to how these models should be specified.
 %
-% 
+% In addition to message passing of a sort that might be anticipated for a
+% hidden Markov model, this scheme allows for the evaluation of alternative
+% trajectories one could pursue. These can either be evaluated in terms of
+% their expected free energy as is standard in active inference models, or
+% through user-specified functions. In addition, this scheme incorporates a
+% form of inductive inference (a recent theoretical development in active
+% inference models) to identify plausible paths to evaluate, avoiding the
+% need for exhaustive tree searches if we know, a priori, that certain
+% states must be visited. If multiple mandatory states are specified, this
+% scheme triages these using a graph-clustering method to order them
+% efficiently - i.e., uses a form of subgoaling.
 %
-% This scheme...
+% Unlike some previous active inference schemes, this routine allows one to
+% specify dependencies among the trajectories of hidden state factors
+% directly, so that some transitions are dependent upon (non-policy)
+% factors. This allows for more complex dynamics for non-hierarchical
+% models.
+%
+% Furthermore, there is more flexibility for user-defined generative
+% processes, which may be specified as functions. For hierarhical or
+% modular architectures, these functions may include the evaluation of
+% another POMDP structure.
 %
 % A limitation here is that in cyclic models (e.g., when there are loopy
 % conditional dependencies in the space of the transition probabilities)
@@ -92,6 +112,24 @@ else
     kG   = mp_POMDP_G(knd, dom);       % Create graph from indices and domains for horizontal model
 end
 
+% Prune dependencies as appropriate for transition model
+%--------------------------------------------------------------------------
+if ~fac
+    rG = G;
+else
+    rG = kG;
+end
+
+ib  = cellfun(@(x)isfield(x,'i'),B);  % Find context-dependent Bs
+
+for i = find(ib)'
+    if ~fac
+        rG{ind.B(i)}(2:end-1) = [];
+    else
+        rG{knd.B(i)}(2:end-1) = [];
+    end
+end
+
 % Construct uninformative factors to deal with childless nodes
 %--------------------------------------------------------------------------
 O = cell(length(ind.B),1);
@@ -136,7 +174,7 @@ for t = 1:T
             Qo      = cell(size(A)); % Posterior predictive distribution
             for g = 1:numel(Qo)
                 if isfield(A{g},'f')
-                    [~,Qo{g}] = pomdp.A{g}.f(1,D(pomdp.dom.A(g).s));
+                    [~,Qo{g}] = pomdp.A{g}.f(ones(pomdp.A{g}.Nd,1),D(pomdp.dom.A(g).s));
                 else
                     Qo{g}      = mp_dot(pomdp.A{g},D(pomdp.dom.A(g).s));
                 end
@@ -163,7 +201,7 @@ for t = 1:T
         if t == 1
             % If mandatory states are specified, ensure their order is optimised
             %--------------------------------------------------------
-            if isfield(pomdp,'h')
+            if isfield(pomdp,'h') && any(cellfun(@(x) length(x)>1,pomdp.h))
                 pomdp.h = mp_pomdp_order(pomdp.h,pomdp.B,D);
             end
         end    
@@ -179,45 +217,9 @@ for t = 1:T
             E{j} = mp_POMDP_oh(Ne(j),V(k,j)); % Set controllable path
         end
         
-        % Prune dependencies based on current beliefs
-        %--------------------------------------------------------------
-        % Where the transitions are specified by multiple alternative
-        % function handles, this part of the routine selects the functional
-        % handle that is most probable based upon the prior information
-        % available.
-
-        rB = B;
-        if ~fac
-            rG = G;
-        else
-            rG = kG;
-        end
-
-        ib  = cellfun(@(x)isfield(x,'i'),B);  % Find context-dependent Bs
-        if ~isempty(ib)
-            for i = find(ib)'
-                rD = D(pomdp.dom.B(i).s(B{i}.i.d));
-                z  = -ones(numel(B{i}.i.v),1);
-                for jf = find(~cellfun(@isempty,B{i}.i.v))
-                    z(jf) = 1;
-                    for js = 1:numel(rD)
-                        z(jf) = z(jf)*rD{js}(B{i}.i.v{jf}(js));
-                    end
-                end
-                if any(z>0.9) % If there is evidence for a non-empty criterion
-                    rB{i}.f = B{i}.f{z>1/length(z)};
-                else          % Otherwise set B to be equal to the function for the empty criterion
-                    rB{i}.f = B{i}.f{z<0};
-                end
-                if ~fac
-                    rG{ind.B(i)}(2:end-1) = [];
-                else
-                    rG{knd.B(i)}(2:end-1) = [];
-                end
-            end
-        end
-    
-        M.G = rG;
+        % Determine appropriate functions to use given current beliefs
+        %------------------------------------------------------------------
+        rB = mp_pomdp_rB(D,B,ib,pomdp.dom);
 
         if ~fac
 
@@ -233,6 +235,7 @@ for t = 1:T
         else
             % Solve horizontal model
             %-----------------------------------------------------------
+            M.G = rG;
             M.A = [E(:);D(:);rB(:);O(:)];
             Y = ones(length(knd.B),1);    % To handle childless nodes
             [Qk, ~, Uk] = MessagePassing(M,Y);
@@ -274,6 +277,15 @@ for t = 1:T
 
     if isfield(pomdp,'h') % If multiple mandatory states specified, then check whether reached. If so, move on to next state.
         pomdp.h = mp_pomdp_h(pomdp.h,D);
+        if isfield(pomdp,'hstop') && pomdp.hstop
+            if all(cellfun(@isempty,pomdp.h))
+                pomdp.T = t;
+                pomdp.Q = pomdp.Q{1:t,:};
+                pomdp.P = pomdp.P{1:t,:};
+                u       = u(:,1:t);
+                break
+            end
+        end
     end
 
     % Select actions
@@ -368,14 +380,18 @@ for k = 1:size(V,1)
     if E(k) > max(E)/8
         for j = 1:numel(pomdp.A)
             if isfield(pomdp.A{j},'f')
-                [~,Qo,~,Ha] = pomdp.A{j}.f(1,U{k}(pomdp.dom.A(j).s)); % Predictive posterior and conditional entropy
+                [~,Qo,~,Ha] = pomdp.A{j}.f(ones(pomdp.A{j}.Nd,1),U{k}(pomdp.dom.A(j).s)); % Predictive posterior and conditional entropy
             else
                 Qo     = mp_dot(pomdp.A{j},U{k}(pomdp.dom.A(j).s));   % Predictive posterior
                 Ha     = -sum(pomdp.A{j}.*mp_log(pomdp.A{j}),1);      % Conditional entropy
             end
             C(k)  = C(k) + Qo'*pomdp.C{j};                            % Expected utility
             Ho(k) = Ho(k) - Qo'*mp_log(Qo);                           % Predictive entropy
-            HA(k) = HA(k) + mp_dot(Ha,U{k}(pomdp.dom.A(j).s));        % Ambiguity
+            if isscalar(Ha)
+                HA(k) = HA(k) + Ha;
+            else
+                HA(k) = HA(k) + mp_dot(Ha,U{k}(pomdp.dom.A(j).s));    % Ambiguity
+            end
         end
     end
 end
@@ -389,6 +405,11 @@ G = mp_log(E) + Ho + C - HA;
 %       'Expected information gain'
 %                    __
 %            'Expected utility'
+
+if isfield(pomdp,'gamma')
+    G = G*pomdp.gamma;
+end
+
 P = mp_softmax(G);
 
 if max(P) > 0.9 % If policy selection definitive, no need for further recursions
@@ -618,4 +639,28 @@ for i = 1:length(rH{1})
         rH{k}(i) = H{k}(j(1));
     end
     L(j(1),:) = Inf;
+end
+
+function rB = mp_pomdp_rB(D,B,ib,dom)
+% Where the transitions are specified by multiple alternative function
+% handles, this part of the routine selects the functional handle that is
+% most probable based upon the prior information available.
+%--------------------------------------------------------------------------
+
+rB = B;
+
+for i = find(ib)'
+    rD = D(dom.B(i).s(B{i}.i.d));
+    z  = -ones(numel(B{i}.i.v),1);
+    for jf = find(~cellfun(@isempty,B{i}.i.v))
+        z(jf) = 1;
+        for js = 1:numel(rD)
+            z(jf) = z(jf)*rD{js}(B{i}.i.v{jf}(js));
+        end
+    end
+    if any(z>1/length(z)) % If there is evidence for a non-empty criterion
+        rB{i}.f = B{i}.f{z>1/length(z)};
+    else                  % Otherwise set B to be equal to the function for the empty criterion
+        rB{i}.f = B{i}.f{z<0};
+    end
 end

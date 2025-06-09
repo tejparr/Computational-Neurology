@@ -27,7 +27,7 @@ function [Q, F, U] = MessagePassing(M,Y)
 
 % Options
 %--------------------------------------------------------------------------
-options = {'nograph', 'noprint', 'acyclic', 'Nmax', 'MAP', 'net', 'Q'};
+options  = {'nograph', 'noprint', 'acyclic', 'Nmax', 'MAP', 'net', 'Q'};
 defaults = {0, 0, 0, 32, 0, 0, 1};
 for i = 1:length(options)
     try
@@ -43,9 +43,9 @@ Ni = M.Nmax; % Maximum number of iterations
 %--------------------------------------------------------------------------
 G  = M.G;    % Causal graph
 
-N  = numel(G);
+N = numel(G);
 
-% Pre-allocate arrays for better performance
+% Pre-allocate arrays
 %--------------------------------------------------------------------------
 aU    = cell(N,N);     % Ascending messages
 dU    = cell(N,1);     % Descending messages
