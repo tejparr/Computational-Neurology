@@ -1,0 +1,7 @@
+consonants,Labial,Dental,Alveolar,Post_alveolar,Palatal,Velar,Glottal
+Nasal,m,,n,,,ng,
+Plosive_fotis,p,,t,ch,,k,
+Plosive_lenis,b,,d,j,,g,
+Fricative_fortis,f,th,s,sh,,x,h
+Fricative_lenis,v,eth,z,zj,,,
+Approximant,,,l,r,y,w,

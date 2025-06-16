@@ -4,12 +4,13 @@ This repository deals with computational models with relevance to neurological s
 
 #### Contents
 1. Internal clocks
-2.  
+2. Speech fluency 
 
 #### Appendices
 1. Active Filtering
 2. Message Passing
-3. Related Models
+3. POMDP Models
+4. Related Models
 
 ## 1 - Internal Clocks
 This demo is based on the idea that we can make use of internal clocks to synchronise our behaviour to events in the world. This is of particular relevance for conditions such as Parkinson's disease or Lewy Body Dementia in which everything from movement to thought can be slowed. The full results are described in the paper <a href="https://www.sciencedirect.com/science/article/pii/S0149763424004536"> 'Inferring When To Move'</a>. The demo depends upon an Active Bayesian Filtering scheme (c.f., <a href="https://en.wikipedia.org/wiki/Generalized_filtering">Generalised Filtering</a>) and simulates timed movements between two targets. 
@@ -17,6 +18,10 @@ This demo is based on the idea that we can make use of internal clocks to synchr
 <img src="Metronomes/Graphics/Animation Default.gif"/>
 
 See <a href="Metronomes/README.md">this linked documentation</a> for details and variations on these simulations.
+
+## 2 - Speech Fluency
+
+<img src="Speech/Graphics/Animation.gif"/>
 
 ## A1 - Active Filtering
 Active filtering refers to the use of a generalised filtering scheme that can be derived from an online application of variational Bayes, under a local Laplace assumption, to dynamical systems expressed in generalised coordinates of motion. Generalised coordinates effectively represent a timeseries in terms of position, velocity, acceleration, and subsequent orders of motion. The active part comes from allowing the filtering scheme to interact with the data-generating process. Effectively, this means equipping the sensory receptors that communicate data to the filter with reflex arcs, such that any deviation from predicted data can be 'corrected' through low level reflexes that bring data in line with our predictions. Crucially, this means both inference and action optimise the same objective function (the ELBO or variational free energy) - often used in machine learning to arrive at an approximation to a marginal likelihood. Please see <a href = "https://www.ncbi.nlm.nih.gov/pmc/articles/PMC8320263/"> Parr et al, 2021</a> and associated supplementary material for an overview of this scheme and its application to simple movement problems in neurology.
@@ -81,4 +86,8 @@ x^{[i]} = \mathbf{f}^{[i-1]} \Rightarrow \partial_a x^{[i]} = \partial_a \mathbf
 
 ## A2 - Message Passing
 
-## A3 - Related Models
+## A3 - POMDP Models
+
+<img src="Generic Demos/Graphics/Animation.gif"/>
+
+## A4 - Related Models

@@ -5,6 +5,8 @@ function MDP = DEMO_POMDP_tMaze
 %--------------------------------------------------------------------------
 
 close all
+cd(fileparts(mfilename('fullpath')))
+OPTIONS.save = 0;
 
 % Setup
 %--------------------------------------------------------------------------
@@ -111,7 +113,7 @@ MDP = mp_POMDP(mdp);
 % Visualisation
 %--------------------------------------------------------------------------
 mp_pomdp_belief_plot(MDP)
-mdp_tMaze_plot(MDP)
+mdp_tMaze_plot(MDP,OPTIONS)
 
 function [o,s] = mdp_tMaze_gen(s,u,~,~)
 % Function for generative process. The arguments are states, actions, and 
@@ -132,7 +134,7 @@ else
     o(2,1) = 2;
 end
 
-function mdp_tMaze_plot(MDP)
+function mdp_tMaze_plot(MDP,OPTIONS)
 figure('Color','w','Name','Maze Animation'); clf
 
 % Maze structure
@@ -183,9 +185,31 @@ for t = 1:MDP.T
             plot(x(k,1),x(k,2),'.r','MarkerSize',16) 
             pause(0.1)
             hold off
+
+            % Animation
+            % -----------------------------------------------------------------
+            if OPTIONS.save
+                F  = getframe(gcf);
+                im = frame2im(F);
+                [MM,MMM] = rgb2ind(im,256);
+                if t==1 && k == 1
+                    imwrite(MM,MMM,'Graphics/Animation.gif','gif','LoopCount',Inf,'DelayTime',1);
+                else
+                    imwrite(MM,MMM,'Graphics/Animation.gif','gif','WriteMode','append','DelayTime',0.3);
+                end
+            end
         else
             plot(x(end,1),x(end,2),'.r','MarkerSize',16)
             pause(0.1)
+
+            % Animation
+            % -----------------------------------------------------------------
+            if OPTIONS.save
+                F  = getframe(gcf);
+                im = frame2im(F);
+                [MM,MMM] = rgb2ind(im,256);
+                imwrite(MM,MMM,'Graphics/Animation.gif','gif','WriteMode','append','DelayTime',0.3);
+            end
             break
         end
     end

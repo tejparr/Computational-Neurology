@@ -279,12 +279,12 @@ for t = 1:T
         pomdp.h = mp_pomdp_h(pomdp.h,D);
         if isfield(pomdp,'hstop') && pomdp.hstop
             if all(cellfun(@isempty,pomdp.h))
-                pomdp.T = min(t+1,pomdp.T);   
+                pomdp.T = min(t+2,pomdp.T); % If all mandatory states reached, allow an additional full iteration then break  
             end
             if t == pomdp.T
-                pomdp.Q = pomdp.Q{1:t+1,:};
-                pomdp.P = pomdp.P{1:t+1,:};
-                u       = u(:,1:t+1);
+                pomdp.Q = pomdp.Q{1:t,:};
+                pomdp.P = pomdp.P{1:t,:};
+                u       = u(:,1:t);
                 break
             end
         end
