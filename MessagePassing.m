@@ -263,14 +263,20 @@ for i = 1:Ni
             AUD = ones(size(a{k},1),1); % ascending
             for j = 1:length(Gk)
                 for z = 1:size(aU,1)
-                    if ismember(Gk(j),G{z})
-                        AUD = mp_norm(AUD.*aU{Gk(j),z});
+                    if m(Gk(1))
+                        if ismember(Gk(j),G{z})
+                            AUD = mp_norm(AUD.*aU{Gk(j),z});
+                        end
+                    else
+                        for v = Gk(:)'
+                            AUD = AUD.*y{v + 1 - min(yi)};
+                        end
                     end
                 end
             end
             
             nA = size(a{k});
-            if length(nA) > 1 % factor k is not a prior
+            if ~isempty(G{Gk(1)}) % factor k is not a prior
                 AUD = repmat(AUD,[1,nA(2:end)]);
                 DUD = ones(size(a{k}));    % descending
                 for j = 1:length(Gk)
