@@ -2,7 +2,7 @@ function mp_pomdp_belief_plot(pomdp,Snames,Onames)
 % Function to plot the beliefs generated from a pomdp simulation
 %---------------------------------------------------------------
 
-figure('Color','w','Name','Beliefs'); clf
+cn_figure('Beliefs')
 
 % Get beliefs about states and observations
 %---------------------------------------------------------------

@@ -176,7 +176,7 @@ for t = 1:T
                 if isfield(A{g},'f')
                     [~,Qo{g}] = pomdp.A{g}.f(ones(pomdp.A{g}.Nd,1),D(pomdp.dom.A(g).s));
                 else
-                    Qo{g}      = mp_dot(pomdp.A{g},D(pomdp.dom.A(g).s));
+                    Qo{g}     = mp_dot(pomdp.A{g},D(pomdp.dom.A(g).s));
                 end
             end
             s       = pomdp.s(:,t-1);
@@ -263,6 +263,22 @@ for t = 1:T
         P = mp_path(pomdp,U,N,V);      % Otherwise use default (based on expected free energy)
     end
     pomdp.P{t} = P;                    % Save path probabilities
+
+    % Select actions
+    %----------------------------------------------------------------------
+    % Here the actions are selected directly by sampling from the
+    % distribution over paths. 
+    
+    % vi = find(rand<cumsum(P));    
+    [~,vi] = max(P);
+    u(:,t) = V(vi(1),:)';
+
+    if isfield(pomdp,'proprioception')
+        if pomdp.proprioception % If actions are also observable
+            P        = zeros(size(P));
+            P(vi(1)) = 1;
+        end
+    end
     
     % Update priors for next step
     %----------------------------------------------------------------------
@@ -289,16 +305,6 @@ for t = 1:T
             end
         end
     end
-
-    % Select actions
-    %----------------------------------------------------------------------
-    % Here the actions are selected directly by sampling from the
-    % distribution over paths. 
-    
-    % vi = find(rand<cumsum(P));    
-    [~,vi] = max(P);
-    u(:,t) = V(vi(1),:)';
-
 end
 %--------------------------------------------------------------------------
 POMDP = pomdp;
@@ -560,8 +566,12 @@ for n = p:-1:1
     G(j(1:2),k(1)) = 0;
 end
 
-[C,d] = mp_graph_cluster(G);
-rH    = mp_subgoal(H,L,C,d);
+try
+    [C,d] = mp_graph_cluster(G);
+    rH    = mp_subgoal(H,L,C,d);
+catch
+    rH = H;
+end
 
 % Repackage in original h structure:
 %--------------------------------------------------------------------------
