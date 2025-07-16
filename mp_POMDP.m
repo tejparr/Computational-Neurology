@@ -122,11 +122,13 @@ end
 
 ib  = cellfun(@(x)isfield(x,'i'),B);  % Find context-dependent Bs
 
-for i = find(ib)'
-    if ~fac
-        rG{ind.B(i)}(2:end-1) = [];
-    else
-        rG{knd.B(i)}(2:end-1) = [];
+if any(ib)
+    for i = find(ib)'
+        if ~fac
+            rG{ind.B(i)}(2:end-1) = [];
+        else
+            rG{knd.B(i)}(2:end-1) = [];
+        end
     end
 end
 
@@ -193,10 +195,29 @@ for t = 1:T
     if fac
         % Construct and solve vertical model
         %-----------------------------------------------------------
-        M.A = [D(:);A(:)];
-        M.G = jG;
-        jQ  = MessagePassing(M,y); 
-        D   = jQ.s;
+        if ~isfield(pomdp,'concat')
+            M.A = [D(:);A(:)];
+            M.G = jG;
+            jQ  = MessagePassing(M,y); 
+            D   = jQ.s;
+        else
+            % For models in which there is a 1:1 relationship between some
+            % of the states and observations, one can in principle
+            % achieve greater efficiency by concatenating the relevant
+            % factors and modalities to perform tensor operations. This
+            % assumes the same form for the likelihood functions for all
+            % pairs of state and observation. 
+
+            for ic    = 1:length(pomdp.concat)
+                si    = pomdp.concat(ic).si;
+                oi    = pomdp.concat(ic).map(si,D(pomdp.concat(ic).is));
+                Af    = @(x) A{oi(1)}.f(x,{1});
+                Nd    = A{oi(1)}.Nd;
+                OI    = arrayfun(@(x)mp_POMDP_oh(Nd,x),y(oi),'UniformOutput',false);
+                L     = cellfun( Af,OI,'UniformOutput',false);
+                D(si) = cellfun( @(x,y) mp_norm(x.*y{1}) ,D(si),L,'UniformOutput',false);
+            end
+        end
 
         if t == 1
             % If mandatory states are specified, ensure their order is optimised
@@ -481,178 +502,6 @@ if p > 0.9
     end
 end
 
-function h = mp_pomdp_order(h,B,Q)
-% Function that optimises the order of the mandatory states
-%--------------------------------------------------------------------------
-
-% First, find the lengths of the shortest paths between mandatory states
-%--------------------------------------------------------------------------
-H     = h(~cellfun(@isempty,h));
-B     = B(~cellfun(@isempty,h));
-Q     = Q(~cellfun(@isempty,h));
-L     = zeros(length(H{1})+1);
-
-for i = 1:numel(H)
-    [~,d]       = max(Q{i});
-    H{i}(end+1) = d;
-end
-
-Qi = cell(size(Q));
-Hj = cell(size(H));
-
-for i = 1:numel(H{1})
-    for j = 1:numel(H{1})
-        for k = 1:numel(H)
-            Hj{k} = H{k}(j);
-            Qi{k} = zeros(size(Q{k}));
-            Qi{k}(H{k}(i)) = 1;
-        end
-        [~,n] = mp_induction(Hj,B,{Qi});
-        L(i,j) = n-1;
-    end
-end
-
-G = L(1:end-1,1:end-1) == 1;
-G = G - diag(diag(G));
-
-% Prune graph to ensure is bipartite (minimum pruning)
-%-----------------------------------------------------
-
-% First, identify and remove triangles:
-[g,k]   = sort(diag(G^3),'ascend');
-k       = k(g>0);
-if ~isempty(k)
-    k(end)  = [];
-end
-
-while ~isempty(k)
-    [~,~,j] = intersect(find(G(:,k(1))),k);
-    j       = k(min(j));
-    G(k(1),j) = 0;
-    G(j,k(1)) = 0;
-    L(k(1),j) = L(k(1),j) + 1/2;
-    L(j,k(1)) = L(j,k(1)) + 1/2;
-    if G(k(1),:)*G*G(:,k(1)) == 0
-        k(1) = [];
-    end
-end
-
-% Then duplicate remaining nodes with degree > 2 and distribute their edges
-p = sum(ceil(bsxfun(@max,sum(G)-2,0)/2));
-G = padarray(G,p*ones(1,2),0,'pre');
-L = padarray(L,p*ones(1,2),64,'pre');
-for i = 1:numel(H)
-    H{i} = padarray(H{i},p,0,'pre');
-end
-
-for n = p:-1:1
-    [~,k] = sort(sum(G),'descend');
-    [~,j] = sort(sum(G*diag(G(:,k(1)))),'descend');
-
-    for i = 1:numel(H)
-        H{i}(n) = H{i}(k(1));
-    end
-
-    L(n,:)         = L(k(1),:);
-    L(:,n)         = L(:,k(1));
-    L(k(1),n)      = 1/2;
-    L(n,k(1))      = 1/2;
-    L(k(1),j(1:2)) = L(k(1),j(1:2)) + 1/2;
-    L(j(1:2),k(1)) = L(j(1:2),k(1)) + 1/2;
-
-    G(n,j(1:2))    = G(k(1),j(1:2));
-    G(j(1:2),n)    = G(j(1:2),k(1));    
-    G(k(1),j(1:2)) = 0;
-    G(j(1:2),k(1)) = 0;
-end
-
-try
-    [C,d] = mp_graph_cluster(G);
-    rH    = mp_subgoal(H,L,C,d);
-catch
-    rH = H;
-end
-
-% Repackage in original h structure:
-%--------------------------------------------------------------------------
-h(~cellfun(@isempty,h)) = rH;
-
-function [H,n] = mp_induction(h,B,Q)
-% Function to compute inductive priors over paths
-%--------------------------------------------------------------------------
-% Note: Currently, this assumes the transition probabilities factorise
-% over state factors.
-
-H   = ones(numel(Q),1);
-ind = find(~cellfun(@isempty,h));
-
-b = cell(size(ind));
-k = zeros(size(ind));
-for i = 1:length(ind)
-    k(i) = h{ind(i)}(1);
-    b{i} = sum(B{ind(i)},3:length(size(B{ind(i)})))> 1/8;
-end
-
-z = 0;
-n = 0;
-while z == 0 && n < 64
-    q = true(numel(Q),1);
-    for j = 1:numel(Q)
-        for i = 1:length(ind)
-            K = zeros(size(b{i},1),1);
-            K(k(i)) = 1;
-            w = Q{j}{ind(i)}'*((b{i}')^n)*K >= 1/2;
-            q(j) = q(j) && w;
-        end
-    end
-    if sum(q)>0
-        H = q > 0;
-        z = 1;
-    end
-    n = n + 1;
-end
-
-function rH = mp_subgoal(H,L,C,d)
-% Takes a set of subgoals H, a distance matrix L, graph clusters C, and 
-% leaf/root nodes d, and returns a re-ordered list of subgoals rH.
-%--------------------------------------------------------------------------
-
-% Pre-allocate reordered states
-%--------------------------------------------------------------------------
-rH = cell(size(H));
-for i = 1:numel(rH)
-    rH{i} = zeros(length(H{i})-1,1);
-end
-
-% Reorganise into a set of subgoals
-%--------------------------------------------------------------------------
-L        = L + diag(Inf*ones(length(H{1}),1)); % Preclude point attractors
-L(end,:) = Inf;                                % and preclude return to start
-j        = length(rH{1});                      % but set this as initial state
-r        = 0;                                  % members left in this cluster
-Id       = ones(size(L,1),1)*Inf;
-for i = 1:numel(d)
-    Id(d{i}) = 0; 
-end
-Ic       = zeros(size(L,1),1);
-for i = 1:length(rH{1})
-    if r == 0
-    % pick cluster (degree 1 node if available)
-        [~,j] = min(L(:,j(1)) + Id);
-        c     = find(cellfun(@(x)ismember(j(1),x),d));
-        Ic    = ones(size(Ic))*Inf;
-        Ic(C{c}) = 0;
-        r     = length(C{c})-1;
-    else
-        [~,j] = min(L(:,j(1)) + Ic);
-        r     = r - 1; 
-    end
-    for k = 1:numel(rH)
-        rH{k}(i) = H{k}(j(1));
-    end
-    L(j(1),:) = Inf;
-end
-
 function rB = mp_pomdp_rB(D,B,ib,dom)
 % Where the transitions are specified by multiple alternative function
 % handles, this part of the routine selects the functional handle that is
@@ -661,7 +510,7 @@ function rB = mp_pomdp_rB(D,B,ib,dom)
 
 rB = B;
 
-for i = find(ib)'
+for i = find(ib(:))'
     rD = D(dom.B(i).s(B{i}.i.d));
     z  = -ones(numel(B{i}.i.v),1);
     for jf = find(~cellfun(@isempty,B{i}.i.v))

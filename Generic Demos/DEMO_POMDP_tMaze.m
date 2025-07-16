@@ -135,7 +135,7 @@ else
 end
 
 function mdp_tMaze_plot(MDP,OPTIONS)
-figure('Color','w','Name','Maze Animation'); clf
+cn_figure('Maze Animation')
 
 % Maze structure
 %--------------------------------------------------------------------------
@@ -162,7 +162,6 @@ end
 
 % Animate
 %--------------------------------------------------------------------------
-
 for t = 1:MDP.T
     for k = (1+(t-1)*8):(1+t*8)
         % Plot maze

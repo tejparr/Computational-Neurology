@@ -41,7 +41,11 @@ for i = 1:numel(B)
     if J(i)
         b = full(B{i});
         b = permute(b, circshift(dims,d+i-1));
-        C = sum(bsxfun(@times, C, b), i+d);
+        if isscalar(b) && isscalar(C)
+            C = C*b;
+        else
+            C = sum(bsxfun(@times, C, b), i+d);
+        end
     end
 end
 

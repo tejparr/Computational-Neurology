@@ -120,7 +120,7 @@ for k = 1:N
     ii{k} = repmat(k, 1, length(G{k}));
     jj{k} = G{k};
 end
-CD = sparse([ii{:}], [jj{:}], 1, N, N);
+CD = sparse([ii{:}], [jj{:}], true, N, N);
 
 
 % Initialise messages
@@ -169,10 +169,8 @@ for i = 1:Ni
         if isempty(G{j})            % If factor j is a prior...
             dU{j} = A{j};           %... then the descending message is the prior
             AU    = ones(size(aU{j,find(CD(:,j),1,"first")}));
-            for k = 1:size(aU,1)
-                if CD(k,j) % if k is a child of j
-                    AU = mp_norm(AU.*aU{j,k});
-                end
+            for k = find(CD(:,j))' % find children of j             
+                AU = mp_norm(AU.*aU{j,k});
             end
             Fa(j) = mp_log(A{j}'*AU);
 
@@ -183,7 +181,7 @@ for i = 1:Ni
             DU = dU(G{j});
             for k = 1:numel(DU)    % Augment with any implicit Dirac nodes
                 if ~isempty(dirac{G{j}(k)})
-                    for l = setdiff(dirac{G{j}(k)}',j)
+                    for l = mp_setdiff(dirac{G{j}(k)}',j)
                         DU{k} = DU{k}.*aU{G{j}(k),l};
                     end
                 end
@@ -212,7 +210,7 @@ for i = 1:Ni
             DU = dU(G{j});
             for k = 1:numel(DU) % Augment with any implicit Dirac nodes
                 if ~isempty(dirac{G{j}(k)})
-                    for l = setdiff(dirac{G{j}(k)}',j)
+                    for l = mp_setdiff(dirac{G{j}(k)}',j)
                         DU{k} = DU{k}.*aU{G{j}(k),l};
                     end
                 end
@@ -220,10 +218,8 @@ for i = 1:Ni
 
             % Product of ascending messages
             AU = ones(size(aU{j,find(CD(:,j),1,"first")}));
-            for k = 1:size(aU,1)
-                if CD(k,j) % if k is a child of j
-                    AU = mp_norm(AU.*aU{j,k});
-                end
+            for k = find(CD(:,j))' % find children of j
+                AU = mp_norm(AU.*aU{j,k});
             end
 
             %  Update messages from factor
@@ -463,3 +459,8 @@ d = sum(d(:));
 
 function a = mp_betaln(b)
 a = max(gammaln(sum(b)),-32) - max(sum(gammaln(b)),-32);
+
+function c = mp_setdiff(a,b)
+% Faster version of setdiff, avoiding implicit sorting operations.
+m = ~ismember(a, b);
+c = a(m);
