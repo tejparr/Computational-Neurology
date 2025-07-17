@@ -79,8 +79,8 @@ end
 while ~isempty(k)
     kk = find(G(:,k(1)));
     [~,~,j]  = intersect(find(G*G(:,k(1))),kk);  % nodes on a triangle with k(1)
-
-    nc   = perms([kk(j(1:2))' k(1)]);            % then determine combinations of these nodes
+    [j1,j2] = find(G(kk(j),kk(j)),1);
+    nc   = perms([kk(j(j1)) kk(j(j2)) k(1)]);    % then determine combinations of these nodes
     Z    = mp_momentum_score(nc,H);              % compute momentum scores
     [~,z] = max(Z);                              % find pair of edges with maximum momentum
 
