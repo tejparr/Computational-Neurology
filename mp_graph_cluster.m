@@ -10,24 +10,26 @@ A(sc,:) = [];                            % Remove from graph
 A(:,sc) = [];                            % ...
 d     = sum(A);                          % Degree of each vertex
 L     = diag(d) - A;                     % Graph Laplacian
-[E,~] = eig(L);                          % Eigendecomposition
-c     = 1;
-while any(sum(abs(E(:,c))>0,2)==0)
-    c = 1:(c(end)+1);
-end
-[~,c] = unique((abs(E(:,c))>0)','rows'); % Remove duplicate clusters
-C     = cell(length(c)+length(sc),1);    % Initialise cluster memberships
-D     = cell(length(c)+length(sc),1);    % Initialise possible starting vertices
+[V,E] = eig(L);                          % Eigendecomposition
+V     = V(:,abs(diag(E))<1/512);
 
-for i = 1:length(c)
-    C{i} = ind(abs(E(:,c(i))) > 0);   % Determine members of each cluster
+
+[~,~,v] = unique(round(V * 1e6) / 1e6, 'rows');
+C       = cell(size(V,2)+length(sc),1);    % Initialise cluster memberships
+D       = cell(size(V,2)+length(sc),1);    % Initialise possible starting vertices
+
+% Determine members of each cluster
+for i = 1:size(V,2)
+    C{i} = ind(v==i);   
 end
 
+% Deal with singleton clusters
 for i = 1:length(sc)
-    C{i+length(c)} = sc(i);
-    D{i+length(c)} = sc(i);
+    C{i} = sc(i);
+    D{i} = sc(i);
 end
-for i = 1:length(c)
+
+for i = 1:size(V,2)
     if any(da(C{i})==1)
         D{i} = C{i}(da(C{i})==1);     % For clusters with roots/leaves, start there
     else

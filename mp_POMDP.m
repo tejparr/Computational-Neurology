@@ -201,29 +201,14 @@ for t = 1:T
             jQ  = MessagePassing(M,y); 
             D   = jQ.s;
         else
-            % For models in which there is a 1:1 relationship between some
-            % of the states and observations, one can in principle
-            % achieve greater efficiency by concatenating the relevant
-            % factors and modalities to perform tensor operations. This
-            % assumes the same form for the likelihood functions for all
-            % pairs of state and observation. 
-
-            for ic    = 1:length(pomdp.concat)
-                si    = pomdp.concat(ic).si;
-                oi    = pomdp.concat(ic).map(si,D(pomdp.concat(ic).is));
-                Af    = @(x) A{oi(1)}.f(x,{1});
-                Nd    = A{oi(1)}.Nd;
-                OI    = arrayfun(@(x)mp_POMDP_oh(Nd,x),y(oi),'UniformOutput',false);
-                L     = cellfun( Af,OI,'UniformOutput',false);
-                D(si) = cellfun( @(x,y) mp_norm(x.*y{1}) ,D(si),L,'UniformOutput',false);
-            end
+            D   = mp_one2one(A,D,pomdp,y);
         end
 
         if t == 1
             % If mandatory states are specified, ensure their order is optimised
             %--------------------------------------------------------
             if isfield(pomdp,'h') && any(cellfun(@(x) length(x)>1,pomdp.h))
-                pomdp.h = mp_pomdp_order(pomdp.h,pomdp.B,D);
+                pomdp.H = mp_pomdp_order(pomdp.h,pomdp.B,D);
             end
         end    
     end
@@ -272,7 +257,7 @@ for t = 1:T
         % If mandatory states are specified, ensure their order is optimised
         %------------------------------------------------------------------
         if isfield(pomdp,'h')
-            pomdp.h = mp_pomdp_order(pomdp.h,pomdp.B,Q{1}.s(ind.D));
+            pomdp.H = mp_pomdp_order(pomdp.h,pomdp.B,Q{1}.s(ind.D));
         end
     end    
 
@@ -283,7 +268,6 @@ for t = 1:T
     else
         P = mp_path(pomdp,U,N,V);      % Otherwise use default (based on expected free energy)
     end
-    pomdp.P{t} = P;                    % Save path probabilities
 
     % Select actions
     %----------------------------------------------------------------------
@@ -301,6 +285,8 @@ for t = 1:T
         end
     end
     
+    pomdp.P{t} = P;                    % Save path probabilities
+
     % Update priors for next step
     %----------------------------------------------------------------------
     for i = 1:numel(D)
@@ -312,10 +298,10 @@ for t = 1:T
         end
     end
 
-    if isfield(pomdp,'h') % If multiple mandatory states specified, then check whether reached. If so, move on to next state.
-        pomdp.h = mp_pomdp_h(pomdp.h,D);
+    if isfield(pomdp,'H') % If multiple mandatory states specified, then check whether reached. If so, move on to next state.
+        pomdp.H = mp_pomdp_h(pomdp.H,D);
         if isfield(pomdp,'hstop') && pomdp.hstop
-            if all(cellfun(@isempty,pomdp.h))
+            if all(cellfun(@isempty,pomdp.H))
                 pomdp.T = min(t+2,pomdp.T); % If all mandatory states reached, allow an additional full iteration then break  
             end
             if t == pomdp.T
@@ -396,8 +382,8 @@ for i = 1:size(V,2)
     E  = E.*pomdp.E{i}(V(:,i));   
 end
 
-if isfield(pomdp,'h') % Account for mandatory states (i.e., use inductive inference)
-    H = mp_induction(pomdp.h,pomdp.B,U);
+if isfield(pomdp,'H') % Account for mandatory states (i.e., use inductive inference)
+    H = mp_induction(pomdp.H,pomdp.B,U);
     E = E.*H;
 end
 
@@ -524,4 +510,66 @@ for i = find(ib(:))'
     else                  % Otherwise set B to be equal to the function for the empty criterion
         rB{i}.f = B{i}.f{z<0};
     end
+end
+
+function D = mp_one2one(A,D,pomdp,y)
+% For models in which there is a 1:1 relationship between some of the
+% states and observations, one can in principle achieve greater efficiency
+% by concatenating the relevant factors and modalities to perform array
+% operations. This assumes the same form for the likelihood functions for
+% all pairs of state and observation.
+%--------------------------------------------------------------------------
+
+tD = D;
+for ic    = 1:length(pomdp.concat)
+    si    = pomdp.concat(ic).si;
+    is    = pomdp.concat(ic).is;
+    dim   = cellfun(@length,D(is))';
+    iS    = ones(dim);
+    ss    = zeros(numel(iS),length(dim));
+    subs  = cell(1,length(dim));
+    for i = 1:numel(iS)
+        [subs{:}] = ind2sub(size(iS),i);
+        ss(i,:)   = [subs{:}];
+        for j = 1:length(pomdp.concat(ic).is)
+            iS(i) = iS(i)*D{pomdp.concat(ic).is(j)}(subs{j});
+        end
+    end
+    if isempty(iS)
+        oi    = pomdp.concat(ic).map(si);
+        Af = @(x) A{oi(1)}.f(x,{1});
+        Nd    = A{oi(1)}.Nd;
+        OI    = arrayfun(@(x)mp_POMDP_oh(Nd,x),y(oi),'UniformOutput',false);
+        l     = cellfun( Af,OI,'UniformOutput',false);
+        l     = vertcat(l{:});
+        L     = l(:,1);
+    else
+        L = num2cell(zeros(length(si),1));
+        iS(iS<1/length(iS)) = 0;
+        sI = iS;
+        for i = find(iS>1/length(iS(:)))'
+            si    = pomdp.concat(ic).si;
+            oi    = pomdp.concat(ic).map(si,ss(i,:));
+            si    = si(~isnan(oi));
+            oi    = oi(~isnan(oi));
+            io    = [{1} num2cell(ss(i,:))];
+            Af    = @(x) A{oi(1)}.f(x,io);
+            Nd    = A{oi(1)}.Nd;
+            OI    = arrayfun(@(x)mp_POMDP_oh(Nd,x),y(oi),'UniformOutput',false);
+            l     = cellfun(Af,OI,'UniformOutput',false);
+            l     = vertcat(l{:});
+            L(si) = cellfun(@(x,y)y+x*iS(i),l(:,1),L(si),'UniformOutput',false);
+            K     = cellfun(@(x,y) x'*y,l(:,1),D(si),'UniformOutput',false);
+            sI(i) = prod([K{:}]);
+        end
+        L  = L(si);
+        sI = sI.*iS;
+        for i = 1:length(dim)
+            di = 1:length(dim);
+            di(i) = [];
+            D{is(i)} = mp_norm(reshape(sum(sI,di),[size(sI,i),1]));
+        end
+    end
+    tD(si) = cellfun( @(x,y) mp_norm(x.*y) ,D(si),L,'UniformOutput',false);
+    D(si) = tD(si);
 end

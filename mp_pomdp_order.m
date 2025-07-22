@@ -80,8 +80,25 @@ while ~isempty(k)
     kk = find(G(:,k(1)));
     [~,~,j]  = intersect(find(G*G(:,k(1))),kk);  % nodes on a triangle with k(1)
     [j1,j2] = find(G(kk(j),kk(j)),1);
-    nc   = perms([kk(j(j1)) kk(j(j2)) k(1)]);    % then determine combinations of these nodes
+    cn   = [kk(j(j1)) kk(j(j2)) k(1)];
+    nc   = perms(cn);                            % then determine combinations of these nodes
     Z    = mp_momentum_score(nc,H);              % compute momentum scores
+    
+    % Account for additional connections
+    for i = 1:size(nc,1)
+        i1 = setdiff(find(G(:,nc(i,1))),nc(i,:));
+        i3 = setdiff(find(G(:,nc(i,3))),nc(i,:));
+        if ~isempty(i1)
+            W  = max(mp_momentum_score([i1 ones(size(i1))*[nc(i,1) nc(i,2)]],H));
+        else
+            W = 0;
+        end
+        if ~isempty(i3)
+            W  = W + max(mp_momentum_score([i3 ones(size(i3))*[nc(i,3) nc(i,2)]],H));
+        end
+        Z(i) = Z(i) + W;
+    end
+
     [~,z] = max(Z);                              % find pair of edges with maximum momentum
 
     % Disconnect the two nodes at ends of this edge
@@ -92,12 +109,14 @@ while ~isempty(k)
 
     if ~noplot
         subplot(4,4,sp)
+        cla
         Gplot = plot(graph(G));
         Gplot.XData = H{2}(1:end-1);
         Gplot.YData = H{1}(1:end-1);
         Gplot.NodeLabel = {};      
         axis ij
         sp = sp+1;
+        sp(sp>16) = 1;
         drawnow
     end
     
@@ -114,12 +133,12 @@ for i = 1:numel(H)
 end
 
 for n = p:-1:1
-    [~,k]    = sort(sum(G),'descend');
-    [l,j]    = sort(sum(G*diag(G(:,k(1)))),'descend');
+    [~,k]    = sort(sum(G),'descend');                  % Sort nodes by degree
+    [l,j]    = sort(sum(G*diag(G(:,k(1)))),'descend');  % Find nodes connected to maximum degree node that are not roots/leaves
     [~,~,ui] = unique(l(l>0));
 
-    if length(ui(ui==max(ui)))>2 % If there are multiple plausible ways of defining intersection
-        cn = j(ui==max(ui));     % Candidate nodes to be connected
+    if length(ui(ui>0))>2 % If there are multiple plausible ways of defining intersection
+        cn = j(ui>0);     % Candidate nodes to be connected
         nc = nchoosek(cn,2);     % list permutations of intersections
         nc = [nc(:,1) k(1)*ones(size(nc,1),1) nc(:,2)]; % include node to be duplicated
         
@@ -132,7 +151,7 @@ for n = p:-1:1
             cn(2*(iz-1) + (1:2)) = [nc(zi(iz),1) nc(zi(iz),3)];
         end
         [cni, ~, cnj] = unique(cn,'stable');
-        j(ui==max(ui)) = cni(cnj(1:length(cni)));
+        j(ui>0) = cni(cnj(1:length(cni)));
     end
 
     for i = 1:numel(H)
@@ -166,11 +185,36 @@ if ~noplot
     Gplot.NodeLabel = {};
     axis ij
     drawnow
+    sp = sp + 1;
+    sp(sp>16) = 1;
 end
 
 try
     [C,d] = mp_graph_cluster(G);
-    rH    = mp_subgoal(H,L,C,d);
+    i = find(cellfun(@(x)numel(x)<3,C))';
+    G([C{i}],:) = 0;
+    G(:,[C{i}]) = 0;
+    C = C(setdiff(1:numel(C),i));
+    d = d(setdiff(1:numel(d),i));
+    if ~noplot
+        for i = 1:numel(C)
+            subplot(4,4,sp)
+            Gplot = plot(graph(G(C{i},C{i})));
+            Gplot.XData = H{2}(C{i});
+            Gplot.YData = H{1}(C{i});
+            [~,u,~] = unique([Gplot.XData; Gplot.YData]','rows','stable');
+            if length(u) < length(H{1}(C{i}))
+                m = setdiff(1:length(H{1}(C{i})),u);
+                Gplot.XData(m) = Gplot.XData(m)+1/2;
+                Gplot.YData(m) = Gplot.YData(m)+1/2;
+            end
+            Gplot.NodeLabel = {};
+            axis ij
+            hold on
+        end
+        drawnow
+    end
+    rH    = mp_subgoal(H,L,G,C,d);
 catch
     rH = H;
 end
@@ -196,5 +240,5 @@ for ic = 1:size(nc,1)
             X(ih,ij) = H{ih}(nc(ic,ij));
         end
     end
-    Z(ic) = (X(:,2)-X(:,1))'*(X(:,3)-X(:,2));
+    Z(ic) = (X(:,2)-X(:,1))'*(X(:,3)-X(:,2))/(vecnorm(X(:,2)-X(:,1))*vecnorm(X(:,3)-X(:,2)));
 end

@@ -165,11 +165,11 @@ Fi        = zeros(1,Ni);
 %--------------------------------------------------------------------------
 F0 = 0;
 for i = 1:Ni
-    for j = [ai di']
+    for j = [di' ai]
         if isempty(G{j})            % If factor j is a prior...
             dU{j} = A{j};           %... then the descending message is the prior
             AU    = ones(size(aU{j,find(CD(:,j),1,"first")}));
-            for k = find(CD(:,j))' % find children of j             
+            for k = find(CD(:,j))'  % find children of j             
                 AU = mp_norm(AU.*aU{j,k});
             end
             Fa(j) = mp_log(A{j}'*AU);
