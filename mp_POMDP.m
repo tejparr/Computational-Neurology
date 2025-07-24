@@ -181,22 +181,27 @@ for t = 1:T
     try   % If available, use outcomes provided
         y = pomdp.o(:,t);
     catch % Otherwise, simulate/obtain outcomes from generative function
-        if t > 1
-            Qo      = cell(size(A)); % Posterior predictive distribution
-            for g = 1:numel(Qo)
-                if isfield(A{g},'f')
-                    [~,Qo{g}] = pomdp.A{g}.f(ones(pomdp.A{g}.Nd,1),D(pomdp.dom.A(g).s));
-                else
-                    Qo{g}     = mp_dot(pomdp.A{g},D(pomdp.dom.A(g).s));
-                end
+        Qo      = cell(size(A)); % Posterior predictive distribution
+        for g = 1:numel(Qo)
+            if isfield(A{g},'f')
+                [~,Qo{g}] = pomdp.A{g}.f(ones(pomdp.A{g}.Nd,1),D(pomdp.dom.A(g).s));
+            else
+                Qo{g}     = mp_dot(pomdp.A{g},D(pomdp.dom.A(g).s));
             end
+        end
+        if t > 1
             s       = pomdp.s(:,t-1);
             [y,s]   = pomdp.gen(s,u(:,t-1),Qo,pomdp);
             pomdp.s(:,t) = s;
-            pomdp.o(:,t) = y;
         else
             s       = pomdp.s(:,1);
             y       = pomdp.gen(s,[],[],pomdp);
+        end
+        if isfield(y,'o') % This indicates there is other information to retain
+            pomdp.o(:,t) = y.o;
+            pomdp.y(:,t) = rmfield(y,'o');
+            y            = y.o;
+        else
             pomdp.o(:,t) = y;
         end
     end
@@ -460,7 +465,7 @@ E = ones(size(V,1),1);
 for i = 1:size(V,2)
     if size(pomdp.E{i},2)>1 % If time-specific priors are given
         j  = sum(cellfun(@(x)~isempty(x),pomdp.P(:,i)));
-        E  = E.*pomdp.E{i}(V(:,i),min(size(pomdp.E,2),j+1));  
+        E  = E.*pomdp.E{i}(V(:,i),min(size(pomdp.E{i},2),j+1));  
     else
         E  = E.*pomdp.E{i}(V(:,i));   
     end
