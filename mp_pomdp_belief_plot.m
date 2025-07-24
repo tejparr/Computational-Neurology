@@ -41,12 +41,16 @@ end
 %-----------------------------------------------------------------
 for i = 1:Ng
     subplot(Nf+Ng,1,Nf+i)
-    try 
-        O = zeros(pomdp.A{i}.Nd,size(o,2));
-    catch
-        O = zeros(size(pomdp.A{i},1),size(o,2));
+    if iscell(pomdp.o)
+        O = [pomdp.o{i,:}]';
+    else
+        try
+            O = zeros(pomdp.A{i}.Nd,size(o,2));
+        catch
+            O = zeros(size(pomdp.A{i},1),size(o,2));
+        end
+        O(sub2ind(size(O),o(i,:),1:size(O,2))) = 1;
     end
-    O(sub2ind(size(O),o(i,:),1:size(O,2))) = 1;
     imagesc(1 - O), colormap gray
     ylabel(Onames{i})
     set(gca,'ytick',[])

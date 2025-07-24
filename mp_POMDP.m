@@ -69,7 +69,7 @@ if isfield(pomdp,'e'),   e = pomdp.e;     end % paths
 
 % Domains and controllable paths
 if isfield(pomdp,'dom'), dom = pomdp.dom; end % domains
-try con = pomdp.con; catch, try con = 1:numel(E); catch, con = 1:numel(e); end,  end % controllable paths
+try con = pomdp.con; catch, try con = 1:numel(E); catch, try con = 1:numel(e); catch, con = []; end, end, end % controllable paths
 
 % Planning horizon
 try N = pomdp.N;     catch, N = 1;   end % assume 1-step ahead unless otherwise specified
@@ -80,10 +80,12 @@ try fac = pomdp.fac; catch, fac = 0; end % assume no factorisation over time unl
 % Identify indices of each variable type
 %--------------------------------------------------------------------------
 
-try ind.E = 1:numel(E);                catch, ind.E = 1:numel(e);                end % Indices to identify all paths
-try ind.D = (1:numel(D)) + ind.E(end); catch, ind.D = (1:numel(d)) + ind.E(end); end % Indices to identify all states
-try ind.B = (1:numel(B)) + ind.D(end); catch, ind.B = (1:numel(b)) + ind.D(end); end % Indices to identify all next states
-try ind.A = (1:numel(A)) + ind.B(end); catch, ind.A = (1:numel(a)) + ind.B(end); end % Indices to identify all observations
+try ind.E = 1:numel(E);                catch, try ind.E = 1:numel(e); catch, ind.E = 0; end,  end % Indices to identify all paths
+try ind.D = (1:numel(D)) + ind.E(end); catch, ind.D = (1:numel(d)) + ind.E(end);              end % Indices to identify all states
+try ind.B = (1:numel(B)) + ind.D(end); catch, ind.B = (1:numel(b)) + ind.D(end);              end % Indices to identify all next states
+try ind.A = (1:numel(A)) + ind.B(end); catch, ind.A = (1:numel(a)) + ind.B(end);              end % Indices to identify all observations
+
+ind.E(ind.E==0) = [];
 
 if fac 
 % Identify indices for vertical message passing
@@ -149,13 +151,20 @@ end
 
 % Path combinations
 %--------------------------------------------------------------------------
-Ne = zeros(size(ind.E));
-for k = 1:length(ind.E)
-    try Ne(k) = length(E{k}); catch, Ne(k) = length(e{k}); end
-end
+if ~isempty(con)
+    Ne = zeros(size(ind.E));
 
-V = mp_POMDP_comb(Ne(con));  % Determine controllable path combinations
-u = zeros(length(Ne),T-1);   % Initialise choice array
+    for k = 1:length(ind.E)
+        try Ne(k) = length(E{k}); catch, Ne(k) = length(e{k}); end
+    end
+
+    V = mp_POMDP_comb(Ne(con));  % Determine controllable path combinations
+    u = zeros(length(Ne),T-1);   % Initialise choice array
+else
+    Ne = 1;
+    u = ones(1,T-1);
+    V = 1;
+end
 
 % Initialise cell arrays for outputs
 %--------------------------------------------------------------------------
@@ -219,8 +228,12 @@ for t = 1:T
 
         % Construct model
         %--------------------------------------------------------------
-        for j = con
-            E{j} = mp_POMDP_oh(Ne(j),V(k,j)); % Set controllable path
+        if isempty(con) % HMM
+            E = {};
+        else
+            for j = con
+                E{j} = mp_POMDP_oh(Ne(j),V(k,j)); % Set controllable path
+            end
         end
         
         % Determine appropriate functions to use given current beliefs
@@ -228,10 +241,18 @@ for t = 1:T
         rB = mp_pomdp_rB(D,B,ib,pomdp.dom);
 
         if ~fac
-
+            if iscell(y) % If probabilistic outcomes are supplied
+                y = cellfun(@(x)x.',y,'UniformOutput',false);
+                M.A = [E(:);D(:);rB(:);A(:);O(:);y(:)];
+                if numel(M.A)>numel(M.G)
+                    M.G = [M.G; num2cell(ind.A')];
+                end
+                Y = [ones(length(ind.B),1);ones(numel(y),1)]; % To handle childless nodes
+            else
             M.A = [E(:);D(:);rB(:);A(:);O(:)];
         
             Y = [y; ones(length(ind.B),1)]; % To handle childless nodes
+            end
 
             % Solve model
             %------------------------------------------------------------
@@ -265,8 +286,10 @@ for t = 1:T
     %----------------------------------------------------------------------
     if isfield(pomdp,'path')
         P = pomdp.path(pomdp,U,N,V);   % If function specified for path priors
-    else
+    elseif ~isempty(con)
         P = mp_path(pomdp,U,N,V);      % Otherwise use default (based on expected free energy)
+    else
+        P = 1;                         % Unless there are no controllable variables
     end
 
     % Select actions
@@ -314,6 +337,23 @@ for t = 1:T
     end
 end
 %--------------------------------------------------------------------------
+
+% Bayesian smoothing
+%--------------------------------------------------------------------------
+if isfield(pomdp,'smooth')
+    M.A = [pomdp.D(:);pomdp.P(1:end-1);repmat(B(:), T-1, 1);repmat(A(:), T, 1)];
+    
+    ind.D = 1:numel(D);
+    ind.E = max(ind.D) + (1:numel(pomdp.P)-1);
+    ind.B = max(ind.E) + (1:numel(B)*(T-1));
+    ind.A = max(ind.B) + (1:numel(A)*T);
+    M.G   = mp_POMDP_B(ind, dom, T);
+    M.acyclic = false;
+    BS    = MessagePassing(M,pomdp.o(:));
+    pomdp.BS.s = reshape(BS.s([ind.D ind.B]),[],T);
+    pomdp.BS.u = BS.s([ind.E]);
+end
+
 POMDP = pomdp;
 POMDP.u = u;
 
@@ -354,6 +394,46 @@ for i = 1:length(ind.B)
     G{length(ind.A) + length(ind.B) + length(ind.D) + length(ind.E) + i} = ind.B(i);
 end
 
+function G = mp_POMDP_B(ind, dom, T)
+% This function takes the indices of variables in a POMDP model and
+% constructs a causal graph, making use of the domain factors as provided.
+% Unlike the mp_POMDP_G routine, this function deals with the full model,
+% enabling Bayesian smoothing.
+%--------------------------------------------------------------------------
+
+G  =  cell(max(ind.A),1);
+Nb =  length(ind.B)/(T-1);
+Ne =  length(ind.E)/(T-1);
+Na =  length(ind.A)/T;
+
+% Connect states at t = 2 to states at t = 1 and paths from 1 to 2
+%--------------------------------------------------------------------------
+for i = ind.D
+    G{ind.B(i)} = [i,ind.D(dom.B(i).s),ind.E(dom.B(i).u)];
+end
+
+% And for observations
+%--------------------------------------------------------------------------
+for i = 1:Na
+    G{ind.A(i)} = ind.D(dom.A(i).s);
+end
+
+% And the same for subsequent times
+%--------------------------------------------------------------------------
+for t = 2:T-1
+    for i = 1:Nb
+        G{ind.B((t-1)*Nb+i)} = [ind.B((t-2)*Nb+i),ind.B((t-2)*Nb+dom.B(i).s),ind.E((t-1)*Ne+dom.B(i).u)];
+    end
+end
+
+% And add observations
+%--------------------------------------------------------------------------
+for t = 2:T
+    for i = 1:Na
+        G{ind.A((t-1)*Na + i)} = ind.B((t-2)*Nb + dom.A(i).s);
+    end
+end
+
 function U = mp_POMDP_comb(Ne)
 % Determine combinations of paths
 %--------------------------------------------------------------------------
@@ -374,12 +454,17 @@ function [P,G] = mp_path(pomdp,U,t,V)
 % Computes a prior probability for paths based upon beliefs about likely
 % outcomes. The inputs are the pomdp structure, the messages from present
 % to future states (U), the time-steps (t) left in the planning horizon,
-% and the combinations of controllable paths we need to consider.
+% and the combinations (V) of controllable paths we need to consider.
 %--------------------------------------------------------------------------
 
 E = ones(size(V,1),1);
 for i = 1:size(V,2)
-    E  = E.*pomdp.E{i}(V(:,i));   
+    if size(pomdp.E{i},2)>1 % If time-specific priors are given
+        j  = sum(cellfun(@(x)~isempty(x),pomdp.P(:,i)));
+        E  = E.*pomdp.E{i}(V(:,i),min(size(pomdp.E,2),j+1));  
+    else
+        E  = E.*pomdp.E{i}(V(:,i));   
+    end
 end
 
 if isfield(pomdp,'H') % Account for mandatory states (i.e., use inductive inference)
