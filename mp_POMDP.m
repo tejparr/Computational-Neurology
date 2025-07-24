@@ -249,9 +249,8 @@ for t = 1:T
                 end
                 Y = [ones(length(ind.B),1);ones(numel(y),1)]; % To handle childless nodes
             else
-            M.A = [E(:);D(:);rB(:);A(:);O(:)];
-        
-            Y = [y; ones(length(ind.B),1)]; % To handle childless nodes
+                M.A = [E(:);D(:);rB(:);A(:);O(:)];
+                Y = [y; ones(length(ind.B),1)]; % To handle childless nodes
             end
 
             % Solve model

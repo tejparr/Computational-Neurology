@@ -70,7 +70,7 @@ try
     end
 catch
     for i = 1:numel(M.A)
-        if ~isfield(M.A{i},'f') && ~issparse(M.A{i})
+        if ~isfield(M.A{i},'f') && ~issparse(M.A{i}) && size(M.A{i},1)~=1
             A{i} = mp_norm(M.A{i});
         else
             A{i} = M.A{i};

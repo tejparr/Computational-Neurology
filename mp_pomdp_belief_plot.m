@@ -42,7 +42,7 @@ end
 for i = 1:Ng
     subplot(Nf+Ng,1,Nf+i)
     if iscell(pomdp.o)
-        O = [pomdp.o{i,:}]';
+        O = [pomdp.o{i,:}];
     else
         try
             O = zeros(pomdp.A{i}.Nd,size(o,2));
