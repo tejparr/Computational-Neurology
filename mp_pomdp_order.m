@@ -71,7 +71,7 @@ if ~noplot
     Gplot = plot(graph(G));
     Gplot.XData = H{2}(1:end-1);
     Gplot.YData = H{1}(1:end-1);
-    Gplot.NodeLabel = {};      
+    % Gplot.NodeLabel = {};      
     axis ij
     sp = 2;
 end
@@ -87,14 +87,19 @@ while ~isempty(k)
     % Account for additional connections
     for i = 1:size(nc,1)
         i1 = setdiff(find(G(:,nc(i,1))),nc(i,:));
+        i2 = setdiff(find(G(:,nc(i,2))),nc(i,:));
         i3 = setdiff(find(G(:,nc(i,3))),nc(i,:));
         if ~isempty(i1)
-            W  = max(mp_momentum_score([i1 ones(size(i1))*[nc(i,1) nc(i,2)]],H));
+            W = max([mp_momentum_score([i1 ones(size(i1))*[nc(i,1) nc(i,2)]],H);0]);
         else
             W = 0;
         end
+        if ~isempty(i2)
+            W = W + max([max(mp_momentum_score([i2 ones(size(i2))*[nc(i,2) nc(i,1)]],H)); ...
+                        max(mp_momentum_score([i2 ones(size(i2))*[nc(i,2) nc(i,3)]],H));0]);
+        end
         if ~isempty(i3)
-            W  = W + max(mp_momentum_score([i3 ones(size(i3))*[nc(i,3) nc(i,2)]],H));
+            W  = W + max([mp_momentum_score([i3 ones(size(i3))*[nc(i,3) nc(i,2)]],H);0]);
         end
         Z(i) = Z(i) + W;
     end

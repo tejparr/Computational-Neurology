@@ -166,6 +166,8 @@ else
     V = 1;
 end
 
+pomdp.V = V;
+
 % Initialise cell arrays for outputs
 %--------------------------------------------------------------------------
 pomdp.P = cell(T,1);         % Path probabilities
