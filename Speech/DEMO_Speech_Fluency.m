@@ -14,7 +14,8 @@ function MDP = DEMO_Speech_Fluency
 %--------------------------------------------------------------------------
 close all
 rng default 
-OPTIONS.save = 0; % Option to save animation
+OPTIONS.save  = 0; % Option to save animation
+OPTIONS.start = 0; % Option to start at oribt state 1 for each word (alternative is to start from 8 - wordlength)
 cd(fileparts(mfilename('fullpath')))
 
 % Simulation set-up (initial states)
@@ -106,33 +107,64 @@ A{2} = zeros(numel(factor1)+1,length(D{1}),length(D{2}),length(D{3}));          
 A{3} = zeros(numel(factor2)+1,length(D{1}),length(D{2}),length(D{3}));                  % Proprioceptive (pharynx)
 A{4} = zeros(2,length(D{1}));                                                           % Vision (other present or not)
 
-for f1 = 1:length(D{1})
-    for f2 = 1:length(D{2})
-        for f3 = 1:length(D{3})
-            if ismember(f1,[1 2])
-                A{1}(end,f1,f2,f3) = 1; % Silence outcome
-            elseif f3 > size(words.indices{f2},1)
-                A{1}(end,f1,f2,f3) = 1; % Silence outcome
-            elseif f1 == 6 % if both speaking
-                A{1}(:,f1,f2,f3) = 1/size(A{1},1); % ambiguous auditory outcome
-            else
-                ph     = words.indices{f2}(f3,:);
-                [~,id] = ismember(ph,[ic;(iv+max(ic))],'rows');
-                A{1}(id,f1,f2,f3) = 1;
-            end
-            if ismember(f1,[1 2 5])
-                A{2}(end,f1,f2,f3) = 1;
-                A{3}(end,f1,f2,f3) = 1;
-            elseif f3 > size(words.indices{f2},1)
-                A{2}(end,f1,f2,f3) = 1;
-                A{3}(end,f1,f2,f3) = 1;
-            else
-                ph     = words.indices{f2}(f3,:);
-                A{2}(ph(1),f1,f2,f3) = 1;
-                A{3}(ph(2),f1,f2,f3) = 1;
+if OPTIONS.start==1
+    for f1 = 1:length(D{1})
+        for f2 = 1:length(D{2})
+            for f3 = 1:length(D{3})
+                if ismember(f1,[1 2])
+                    A{1}(end,f1,f2,f3) = 1; % Silence outcome
+                elseif f3 > size(words.indices{f2},1)
+                    A{1}(end,f1,f2,f3) = 1; % Silence outcome
+                elseif f1 == 6 % if both speaking
+                    A{1}(:,f1,f2,f3) = 1/size(A{1},1); % ambiguous auditory outcome
+                else
+                    ph     = words.indices{f2}(f3,:);
+                    [~,id] = ismember(ph,[ic;(iv+max(ic))],'rows');
+                    A{1}(id,f1,f2,f3) = 1;
+                end
+                if ismember(f1,[1 2 5])
+                    A{2}(end,f1,f2,f3) = 1;
+                    A{3}(end,f1,f2,f3) = 1;
+                elseif f3 > size(words.indices{f2},1)
+                    A{2}(end,f1,f2,f3) = 1;
+                    A{3}(end,f1,f2,f3) = 1;
+                else
+                    ph     = words.indices{f2}(f3,:);
+                    A{2}(ph(1),f1,f2,f3) = 1;
+                    A{3}(ph(2),f1,f2,f3) = 1;
+                end
             end
         end
     end
+else
+    for f1 = 1:length(D{1})
+        for f2 = 1:length(D{2})
+            for f3 = 1:length(D{3})
+                if ismember(f1,[1 2])
+                    A{1}(end,f1,f2,f3) = 1; % Silence outcome
+                elseif f3 < 9 - size(words.indices{f2},1)
+                    A{1}(end,f1,f2,f3) = 1; % Silence outcome
+                elseif f1 == 6 % if both speaking
+                    A{1}(:,f1,f2,f3) = 1/size(A{1},1); % ambiguous auditory outcome
+                else
+                    ph     = words.indices{f2}(f3 - 8 + size(words.indices{f2},1),:);
+                    [~,id] = ismember(ph,[ic;(iv+max(ic))],'rows');
+                    A{1}(id,f1,f2,f3) = 1;
+                end
+                if ismember(f1,[1 2 5])
+                    A{2}(end,f1,f2,f3) = 1;
+                    A{3}(end,f1,f2,f3) = 1;
+                elseif f3 < 9 - size(words.indices{f2},1)
+                    A{2}(end,f1,f2,f3) = 1;
+                    A{3}(end,f1,f2,f3) = 1;
+                else
+                    ph     = words.indices{f2}(f3 - 8 + size(words.indices{f2},1),:);
+                    A{2}(ph(1),f1,f2,f3) = 1;
+                    A{3}(ph(2),f1,f2,f3) = 1;
+                end
+            end
+        end
+    end    
 end
 
 A{1}(A{1}==1) = a1;
@@ -181,13 +213,21 @@ for f1 = 1:length(D{1})
         end
     end
 end
-for f2 = 1:length(D{2})
-    Np           = size(words.indices{f2},1);
-    B{3}(:,:,f2) = circshift(eye(8),1,1);
-    B{3}(:,Np:7,f2) = 0;
-    B{3}(8,Np:7,f2) = 1;
+if OPTIONS.start == 1
+    for f2 = 1:length(D{2})
+        Np           = size(words.indices{f2},1);
+        B{3}(:,:,f2) = circshift(eye(8),1,1);
+        B{3}(:,Np:7,f2) = 0;
+        B{3}(8,Np:7,f2) = 1;
+    end
+else
+    for f2 = 1:length(D{2})
+        Np           = size(words.indices{f2},1);
+        B{3}(:,:,f2) = circshift(eye(8),1,1);
+        B{3}(:,1:8-Np,f2) = 0;
+        B{3}(9-Np,1:8-Np,f2) = 1;
+    end
 end
-
 for f2 = 1:size(B{3},3)
     B{3}(:,:,f2) = b7*B{3}(:,:,f2) + (1-b7)*(circshift(B{3}(:,:,f2),1) + circshift(B{3}(:,:,f2),-1))/2;
 end
@@ -474,11 +514,19 @@ for i = 1:size(pomdp.o,2)
         title('Inferred word')
 
         subplot(3,2,4)
-        for k = jw'
-            l = size(pomdp.par.words.indices{k},1);
-            plot(C([1:l 8 1],1),C([1:l 8 1],2),'k','LineWidth',2,'Color',ones(3,1)-min(1,pomdp.Q{i,2}(k))), hold on
+        if OPTIONS.start==1
+            for k = jw'
+                l = size(pomdp.par.words.indices{k},1);
+                plot(C([1:l 8 1],1),C([1:l 8 1],2),'k','LineWidth',2,'Color',ones(3,1)-min(1,pomdp.Q{i,2}(k))), hold on
+            end
+            plot(C(:,1),C(:,2),'ok','MarkerSize',10)
+        else
+           for k = jw'
+                l = size(pomdp.par.words.indices{k},1);
+                plot(C([(8-l+1):8 1 (8-l+1)],1),C([(8-l+1):8 1 (8-l+1)],2),'k','LineWidth',2,'Color',ones(3,1)-min(1,pomdp.Q{i,2}(k))), hold on
+            end
+            plot(C(:,1),C(:,2),'ok','MarkerSize',10)
         end
-        plot(C(:,1),C(:,2),'ok','MarkerSize',10)
         for k = 1:size(C,1)
             plot(C(k,1),C(k,2),'.','MarkerSize',16,'Color',[1 0 0]*(max(min(pomdp.Q{i,3}(k),1),0)))
         end
