@@ -15,13 +15,13 @@ function MDP = DEMO_Speech_Fluency
 close all
 rng default 
 OPTIONS.save  = 0; % Option to save animation
-OPTIONS.start = 0; % Option to start at oribt state 1 for each word (alternative is to start from 8 - wordlength)
+OPTIONS.start = 1; % Option to start at oribt state 1 for each word (alternative 0 is to start from 8 - wordlength)
 cd(fileparts(mfilename('fullpath')))
 
 % Simulation set-up (initial states)
 %--------------------------------------------------------------------------
 Nw = 16;      % Number of words in vocabulary
-s  = [2;      % 1. Silence/alone, 2. silence/company, 3. speaking to myself, 4. speaking to another, 5. listening to another, 6. both speaking
+s  = [1;      % 1. Silence/alone, 2. silence/company, 3. speaking to myself, 4. speaking to another, 5. listening to another, 6. both speaking
       1;      % Word being spoken [1-Nw]
       8];     % Position in orbit [1-8], where 1 is the start of a word and 8 is a silent state that always progresses to 1
 
@@ -286,11 +286,13 @@ mdp_fluency_animation(MDP,OPTIONS)
 
 mp_pomdp_belief_plot(MDP,{'Social','Word','Orbit'},{'Audition','Airflow','Pharynx','Vision'})
 
-return
+mdp_fluency_speak(MDP)
+
+return 
 
 % Illustrate effect of social context on parameter sensitivity
 %--------------------------------------------------------------------------
-e1 = 0:6;
+e1 = 0:6; %#ok<UNRCH>
 e2 = 0.5:0.05:0.8;
 g  = zeros(length(e1),length(e2),2);
 mdp.T = 32;
@@ -468,10 +470,10 @@ axis off
 an = annotation('textbox',pos,'String',str,'FontSize',12,'LineStyle','None');
 for i = 1:size(pomdp.o,2)
    
-    str = [str '/'];
+    str = [str '/']; %#ok<AGROW>
     for j = 1:length(pomdp.par.cv{pomdp.o(1,i)})
         cla
-        str = [str pomdp.par.cv{pomdp.o(1,i)}(j)];
+        str = [str pomdp.par.cv{pomdp.o(1,i)}(j)]; %#ok<AGROW>
         an.String = str;     
         
         % Plot all observables
