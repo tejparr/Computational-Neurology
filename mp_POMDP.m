@@ -184,11 +184,15 @@ for t = 1:T
         y = pomdp.o(:,t);
     catch % Otherwise, simulate/obtain outcomes from generative function
         Qo      = cell(size(A)); % Posterior predictive distribution
-        for g = 1:numel(Qo)
-            if isfield(A{g},'f')
-                [~,Qo{g}] = pomdp.A{g}.f(ones(pomdp.A{g}.Nd,1),D(pomdp.dom.A(g).s));
-            else
-                Qo{g}     = mp_dot(pomdp.A{g},D(pomdp.dom.A(g).s));
+        if isfield(pomdp,'likelihood') % if a generic function is used for evaluation of likelihood
+            [~,Qo] = pomdp.likelihood(D,[],pomdp);
+        else
+            for g = 1:numel(Qo)
+                if isfield(A{g},'f')
+                    [~,Qo{g}] = pomdp.A{g}.f(ones(pomdp.A{g}.Nd,1),D(pomdp.dom.A(g).s));
+                else
+                    Qo{g}     = mp_dot(pomdp.A{g},D(pomdp.dom.A(g).s));
+                end
             end
         end
         if t > 1
@@ -211,20 +215,22 @@ for t = 1:T
     if fac
         % Construct and solve vertical model
         %-----------------------------------------------------------
-        if ~isfield(pomdp,'concat')
+        if isfield(pomdp,'concat') % when there is a one-to-one mapping between state factors and outcome modalities, sometimes more efficient to concatenate computations
+            D   = mp_one2one(A,D,pomdp,y);
+        elseif isfield(pomdp,'likelihood') % if a generic function is used for evaluation of likelihood
+            D   = pomdp.likelihood(D,y,pomdp);
+        else
             M.A = [D(:);A(:)];
             M.G = jG;
             jQ  = MessagePassing(M,y); 
             D   = jQ.s;
-        else
-            D   = mp_one2one(A,D,pomdp,y);
         end
 
         if t == 1
             % If mandatory states are specified, ensure their order is optimised
-            %--------------------------------------------------------
+            %--------------------------------------------------------------
             if isfield(pomdp,'h') && any(cellfun(@(x) length(x)>1,pomdp.h))
-                pomdp.H = mp_pomdp_order(pomdp.h,pomdp.B,D);
+                pomdp.H = mp_pomdp_order(pomdp.h,pomdp.B,D,dom);
             end
         end    
     end
@@ -239,7 +245,7 @@ for t = 1:T
             E = {};
         else
             for j = con
-                E{j} = mp_POMDP_oh(Ne(j),V(k,j)); % Set controllable path
+                E{j} = mp_oh(Ne(j),V(k,j)); % Set controllable path
             end
         end
         
@@ -329,6 +335,9 @@ for t = 1:T
 
     if isfield(pomdp,'H') % If multiple mandatory states specified, then check whether reached. If so, move on to next state.
         pomdp.H = mp_pomdp_h(pomdp.H,D);
+        if all(cellfun(@isempty,pomdp.H))
+            pomdp = rmfield(pomdp,'H');
+        end
         if isfield(pomdp,'hstop') && pomdp.hstop
             if all(cellfun(@isempty,pomdp.H))
                 pomdp.T = min(t+2,pomdp.T); % If all mandatory states reached, allow an additional full iteration then break  
@@ -451,11 +460,6 @@ for k = 1:length(Ne)
     U(:,k) = kron(kron(bk,1:Ne(k)),ak)';
 end
 
-function a = mp_POMDP_oh(N,n)
-% Returns one-hot vector of length N with one in position n
-%--------------------------------------------------------------------------
-a = zeros(N,1); a(n) = 1;
-
 function [P,G] = mp_path(pomdp,U,t,V)
 % Computes a prior probability for paths based upon beliefs about likely
 % outcomes. The inputs are the pomdp structure, the messages from present
@@ -474,7 +478,7 @@ for i = 1:size(V,2)
 end
 
 if isfield(pomdp,'H') % Account for mandatory states (i.e., use inductive inference)
-    H = mp_induction(pomdp.H,pomdp.B,U);
+    H = mp_induction(pomdp.H,pomdp.B,U,pomdp.dom.B);
     E = E.*H;
 end
 
@@ -630,7 +634,7 @@ for ic    = 1:length(pomdp.concat)
         oi    = pomdp.concat(ic).map(si);
         Af = @(x) A{oi(1)}.f(x,{1});
         Nd    = A{oi(1)}.Nd;
-        OI    = arrayfun(@(x)mp_POMDP_oh(Nd,x),y(oi),'UniformOutput',false);
+        OI    = arrayfun(@(x)mp_oh(Nd,x),y(oi),'UniformOutput',false);
         l     = cellfun( Af,OI,'UniformOutput',false);
         l     = vertcat(l{:});
         L     = l(:,1);
@@ -646,7 +650,7 @@ for ic    = 1:length(pomdp.concat)
             io    = [{1} num2cell(ss(i,:))];
             Af    = @(x) A{oi(1)}.f(x,io);
             Nd    = A{oi(1)}.Nd;
-            OI    = arrayfun(@(x)mp_POMDP_oh(Nd,x),y(oi),'UniformOutput',false);
+            OI    = arrayfun(@(x)mp_oh(Nd,x),y(oi),'UniformOutput',false);
             l     = cellfun(Af,OI,'UniformOutput',false);
             l     = vertcat(l{:});
             L(si) = cellfun(@(x,y)y+x*iS(i),l(:,1),L(si),'UniformOutput',false);

@@ -23,7 +23,7 @@ end
 
 C = A;
 
-% Alernative fomualtion using builtin tensorprod function, but this appears
+% Alernative formualtion using builtin tensorprod function, but this appears
 % to be slower
 %--------------------------------------------------------------------------
 % for i = numel(B):-1:1

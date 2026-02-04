@@ -184,7 +184,7 @@ for i = 1:Ni
                     for l = mp_setdiff(dirac{G{j}(k)}',j)
                         DU{k} = DU{k}.*aU{G{j}(k),l};
                     end
-                end
+                end      
             end
 
             %  Update messages from factor

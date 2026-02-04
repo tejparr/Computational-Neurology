@@ -1,4 +1,4 @@
-function h = mp_pomdp_order(h,B,Q,OPT)
+function h = mp_pomdp_order(h,B,Q,dom,OPT)
 % Function that optimises the order of the mandatory states h given
 % transitions B and beliefs about the initial location Q.
 %--------------------------------------------------------------------------
@@ -12,6 +12,7 @@ end
 % First, find the lengths of the shortest paths between mandatory states
 %==========================================================================
 Ih = ~cellfun(@isempty,h);     % Identify factors with mandatory states
+Ih([dom.B(Ih).s]) = 1;         % And supplement with those on which those depend
 
 % Initialise variables with only relevant elements
 %--------------------------------------------------------------------------
@@ -42,7 +43,7 @@ for i = 1:numel(H{1})
             Qi{k} = zeros(size(Q{k}));
             Qi{k}(H{k}(i)) = 1;
         end
-        [~,n] = mp_induction(Hj,B,{Qi});
+        [~,n] = mp_induction(Hj,B,{Qi},dom.B(Ih));
         L(i,j) = n-1;
     end
 end
@@ -131,10 +132,10 @@ end
 
 % Then duplicate remaining nodes with degree > 2 and distribute their edges
 p = sum(ceil(bsxfun(@max,sum(G)-2,0)/2));
-G = padarray(G,p*ones(1,2),0,'pre');
-L = padarray(L,p*ones(1,2),64,'pre');
+G = mp_padarray(G,p*ones(1,2),0,'pre');
+L = mp_padarray(L,p*ones(1,2),64,'pre');
 for i = 1:numel(H)
-    H{i} = padarray(H{i},p,0,'pre');
+    H{i} = mp_padarray(H{i},p,0,'pre');
 end
 
 for n = p:-1:1
