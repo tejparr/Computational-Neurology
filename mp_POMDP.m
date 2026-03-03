@@ -55,6 +55,13 @@ try A = pomdp.A; catch, a = pomdp.a;      end % Likelihood probabilities
 try B = pomdp.B; catch, b = pomdp.b;      end % Transition probabilities
 try D = pomdp.D; catch, d = pomdp.d;      end % Initial state probabilities
 
+if ...                                        % If Dirichlet parameters used...
+        isfield('a',pomdp) || isfield('b',pomdp) ||... 
+        isfield('c',pomdp) || isfield('d',pomdp) || ...
+        isfield('e',pomdp)  
+    pomdp.smooth = 1;                         % ... then ensure smoothing step in place to learn
+end
+
 T = pomdp.T;                                  % Time horizon
 
 % Unpack optional fields
@@ -571,7 +578,7 @@ end
 
 function h = mp_pomdp_h(h,Q)
 % Function that checks whether the mandatory states have been reached. If
-% so, it moves on to the next state. 
+% so, it moves on to the next state until there is only one left. 
 %--------------------------------------------------------------------------
 p = 1;
 for i = find(~cellfun(@isempty,h))'
@@ -579,7 +586,9 @@ for i = find(~cellfun(@isempty,h))'
 end
 if p > 0.9
     for i = find(~cellfun(@isempty,h))'
-        h{i}(1) = [];
+        if length(h{i})>1
+            h{i}(1) = [];
+        end
     end
 end
 
