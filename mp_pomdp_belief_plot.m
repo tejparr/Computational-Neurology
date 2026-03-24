@@ -31,7 +31,7 @@ end
 %----------------------------------------------------------------
 for i = 1:Nf
     subplot(Nf+Ng,1,i)
-    imagesc(1 - [Q{1:end, i}]), colormap gray
+    imagesc(1 - [Q{1:end, i}]), colormap gray, clim([0 1])
     ylabel(Snames{i})
     set(gca,'ytick',[])
     set(gca,'yticklabel',[])
