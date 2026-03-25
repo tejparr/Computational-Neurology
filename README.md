@@ -91,3 +91,7 @@ x^{[i]} = \mathbf{f}^{[i-1]} \Rightarrow \partial_a x^{[i]} = \partial_a \mathbf
 <img src="Generic Demos/Graphics/Animation.gif"/>
 
 ## A4 - Related Models
+
+## Links
+
+[![Hypercommit](https://img.shields.io/badge/Hypercommit-DB2475)](https://hypercommit.com/computational-neurology)
