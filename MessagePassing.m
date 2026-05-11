@@ -140,6 +140,22 @@ for i = 1:N
     dirac{i} = find(CD(:,i));
 end
 
+% Precompute children (and first child)
+%--------------------------------------------------------------------------
+chi = cell(N,1);
+for j = 1:N
+    for p = G{j}
+        chi{p}(end+1) = j;
+    end
+end
+
+chi1 = zeros(N,1);
+for j = 1:N
+    if ~isempty(chi{j})
+        chi1(j) = chi{j}(1);
+    end
+end
+
 % Figure (unless disabled)
 %--------------------------------------------------------------------------
 if ~M.nograph 
@@ -168,9 +184,9 @@ for i = 1:Ni
     for j = [di' ai]
         if isempty(G{j})            % If factor j is a prior...
             dU{j} = A{j};           %... then the descending message is the prior
-            AU    = ones(size(aU{j,find(CD(:,j),1,"first")}));
-            for k = find(CD(:,j))'  % find children of j             
-                AU = mp_norm(AU.*aU{j,k});
+            AU = ones(size(aU{j,chi1(j)}));
+            for k = chi{j}          % find children of j  
+                AU = AU.*aU{j,k};
             end
             Fa(j) = mp_log(A{j}'*AU);
 
@@ -217,9 +233,9 @@ for i = 1:Ni
             end
 
             % Product of ascending messages
-            AU = ones(size(aU{j,find(CD(:,j),1,"first")}));
-            for k = find(CD(:,j))' % find children of j
-                AU = mp_norm(AU.*aU{j,k});
+            AU = ones(size(aU{j,chi1(j)}));
+            for k = chi{j}  % find children of j
+                AU = AU.*aU{j,k};
             end
 
             %  Update messages from factor
@@ -355,10 +371,10 @@ for i = 1:Ni
         %------------------------------------------------------------------
         Q.s = cell(numel(G) - length(yi),1);
         for k = 1:numel(Q.s)
-            AU = ones(size(aU{k,find(CD(:,k),1,"first")}));
+            AU = ones(size(aU{k,chi1{k}}));
             for j = 1:size(aU,1)
                 if CD(j,k) % if k is a parent of j
-                    AU = mp_norm(AU.*aU{k,j});
+                    AU = AU.*aU{k,j};
                 end
             end
             if isfield(A{k},'g') % If an alternative rule is given for computing marginals
@@ -462,5 +478,8 @@ a = max(gammaln(sum(b)),-32) - max(sum(gammaln(b)),-32);
 
 function c = mp_setdiff(a,b)
 % Faster version of setdiff, avoiding implicit sorting operations.
-m = ~ismember(a, b);
-c = a(m);
+
+% m = ~ismember(a, b);
+% c = a(m);
+
+c = a(a~=b); % sufficient if only single element removed

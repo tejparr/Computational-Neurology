@@ -341,12 +341,12 @@ for t = 1:T
     end
 
     if isfield(pomdp,'H') % If multiple mandatory states specified, then check whether reached. If so, move on to next state.
-        pomdp.H = mp_pomdp_h(pomdp.H,D);
+        [pomdp.H,lr] = mp_pomdp_h(pomdp.H,D);
         if all(cellfun(@isempty,pomdp.H))
             pomdp = rmfield(pomdp,'H');
         end
         if isfield(pomdp,'hstop') && pomdp.hstop
-            if all(cellfun(@isempty,pomdp.H))
+            if all(cellfun(@isempty,pomdp.H)) || lr
                 pomdp.T = min(t+2,pomdp.T); % If all mandatory states reached, allow an additional full iteration then break  
             end
             if t == pomdp.T
@@ -576,11 +576,12 @@ else
     return
 end
 
-function h = mp_pomdp_h(h,Q)
+function [h, lr] = mp_pomdp_h(h,Q)
 % Function that checks whether the mandatory states have been reached. If
 % so, it moves on to the next state until there is only one left. 
 %--------------------------------------------------------------------------
-p = 1;
+p  = 1;
+lr = 0; % last reached
 for i = find(~cellfun(@isempty,h))'
     p = p*Q{i}(h{i}(1));
 end
@@ -588,6 +589,8 @@ if p > 0.9
     for i = find(~cellfun(@isempty,h))'
         if length(h{i})>1
             h{i}(1) = [];
+        else
+            lr = 1;
         end
     end
 end

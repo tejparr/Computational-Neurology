@@ -12,7 +12,10 @@ end
 % First, find the lengths of the shortest paths between mandatory states
 %==========================================================================
 Ih = ~cellfun(@isempty,h);     % Identify factors with mandatory states
-Ih([dom.B(Ih).s]) = 1;         % And supplement with those on which those depend
+if isempty(dom)                % And supplement with those on which those depend
+    dom.B = struct('s', cell(size(Ih)));
+end
+Ih([dom.B(Ih).s]) = 1; 
 
 % Initialise variables with only relevant elements
 %--------------------------------------------------------------------------
