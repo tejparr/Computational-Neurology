@@ -45,13 +45,6 @@ G  = M.G;    % Causal graph
 
 N = numel(G);
 
-% Pre-allocate arrays
-%--------------------------------------------------------------------------
-aU    = cell(N,N);     % Ascending messages
-dU    = cell(N,1);     % Descending messages
-dirac = cell(N,1);     % Dirac delta factors
-Fa    = zeros(N,1);    % Factor contributions to evidence
-
 % Normalise Dirichlet counts if using
 %--------------------------------------------------------------------------
 try
@@ -123,23 +116,6 @@ end
 CD = sparse([ii{:}], [jj{:}], true, N, N);
 
 
-% Initialise messages
-%--------------------------------------------------------------------------
-for i = 1:N
-    for j = 1:N
-        if CD(j,i)
-            aU{i,j} = ones(Ln(i),1); % Messages from j to i
-        end
-    end
-    dU{i} = ones(Ln(i),1);           % Messages from i
-end
-
-% Identify implicit Dirac delta factors 
-%--------------------------------------------------------------------------
-for i = 1:N
-    dirac{i} = find(CD(:,i));
-end
-
 % Precompute children (and first child)
 %--------------------------------------------------------------------------
 chi = cell(N,1);
@@ -154,6 +130,42 @@ for j = 1:N
     if ~isempty(chi{j})
         chi1(j) = chi{j}(1);
     end
+end
+
+
+% Indices to identify ascending messages
+%--------------------------------------------------------------------------
+key  = [chi{:}]';
+key  = [repelem((1:N)', cellfun(@length,chi(1:N))) key];
+K    = size(key,1);
+
+rkey = zeros(N, N);
+for k = 1:size(key,1)
+    i = key(k,1);
+    j = key(k,2);
+    rkey(i,j) = k;
+end
+
+% Pre-allocate arrays
+%--------------------------------------------------------------------------
+aU    = cell(size(key,1),1);     % Ascending messages
+dU    = cell(N,1);               % Descending messages
+dirac = cell(N,1);               % Dirac delta factors
+Fa    = zeros(N,1);              % Factor contributions to evidence
+
+% Initialise messages
+%--------------------------------------------------------------------------
+for i = 1:N
+    dU{i} = ones(Ln(i),1);           % Messages from i
+end
+for i = 1:K
+    aU{i} = ones(Ln(key(i,1)),1);    % Messages to key(i,1)
+end
+
+% Identify implicit Dirac delta factors 
+%--------------------------------------------------------------------------
+for i = 1:N
+    dirac{i} = find(CD(:,i));
 end
 
 % Figure (unless disabled)
@@ -184,9 +196,9 @@ for i = 1:Ni
     for j = [di' ai]
         if isempty(G{j})            % If factor j is a prior...
             dU{j} = A{j};           %... then the descending message is the prior
-            AU = ones(size(aU{j,chi1(j)}));
+            AU = ones(size(aU{rkey(j,chi1(j))}));
             for k = chi{j}          % find children of j  
-                AU = AU.*aU{j,k};
+                AU = AU.*aU{rkey(j,k)};
             end
             Fa(j) = mp_log(A{j}'*AU);
 
@@ -198,7 +210,7 @@ for i = 1:Ni
             for k = 1:numel(DU)    % Augment with any implicit Dirac nodes
                 if ~isempty(dirac{G{j}(k)})
                     for l = mp_setdiff(dirac{G{j}(k)}',j)
-                        DU{k} = DU{k}.*aU{G{j}(k),l};
+                        DU{k} = DU{k}.*aU{rkey(G{j}(k),l)};
                     end
                 end      
             end
@@ -217,7 +229,7 @@ for i = 1:Ni
                 end
             end
             for k = 1:length(G{j})
-                aU{G{j}(k),j} = Ua{k};
+                aU{rkey(G{j}(k),j)} = Ua{k};
             end
             dU{j} = Ud;
         else
@@ -227,15 +239,15 @@ for i = 1:Ni
             for k = 1:numel(DU) % Augment with any implicit Dirac nodes
                 if ~isempty(dirac{G{j}(k)})
                     for l = mp_setdiff(dirac{G{j}(k)}',j)
-                        DU{k} = DU{k}.*aU{G{j}(k),l};
+                        DU{k} = DU{k}.*aU{rkey(G{j}(k),l)};
                     end
                 end
             end
 
             % Product of ascending messages
-            AU = ones(size(aU{j,chi1(j)}));
+            AU = ones(size(aU{rkey(j,chi1(j))}));
             for k = chi{j}  % find children of j
-                AU = AU.*aU{j,k};
+                AU = AU.*aU{rkey(j,k)};
             end
 
             %  Update messages from factor
@@ -252,7 +264,7 @@ for i = 1:Ni
                 end
             end
             for k = 1:length(G{j})
-                aU{G{j}(k),j} = Ua{k};
+                aU{rkey(G{j}(k),j)} = Ua{k};
             end
             dU{j} = Ud;
         end
@@ -274,10 +286,10 @@ for i = 1:Ni
             %--------------------------------------------------------------
             AUD = ones(size(a{k},1),1); % ascending
             for j = 1:length(Gk)
-                for z = 1:size(aU,1)
+                for z = 1:N
                     if m(Gk(1))
                         if ismember(Gk(j),G{z})
-                            AUD = mp_norm(AUD.*aU{Gk(j),z});
+                            AUD = mp_norm(AUD.*aU{rkey(Gk(j),z)});
                         end
                     else
                         for v = Gk(:)'
@@ -371,10 +383,10 @@ for i = 1:Ni
         %------------------------------------------------------------------
         Q.s = cell(numel(G) - length(yi),1);
         for k = 1:numel(Q.s)
-            AU = ones(size(aU{k,chi1{k}}));
-            for j = 1:size(aU,1)
+            AU = ones(size(aU{rkey(k,chi1(k))}));
+            for j = 1:N
                 if CD(j,k) % if k is a parent of j
-                    AU = AU.*aU{k,j};
+                    AU = AU.*aU{rkey(k,j)};
                 end
             end
             if isfield(A{k},'g') % If an alternative rule is given for computing marginals
@@ -439,10 +451,10 @@ for i = 1:Ni
                 %---------------------------------------------------
                 Q.s = cell(N - length(yi),1);
                 for k = 1:numel(Q.s)
-                    AU = ones(size(aU{k,find(CD(:,k),1,"first")}));
-                    for j = 1:size(aU,1)
+                    AU = ones(size(aU{rkey(k,find(CD(:,k),1,"first"))}));
+                    for j = 1:N
                         if CD(j,k) % if k is a parent of j
-                            AU = mp_norm(AU.*aU{k,j});
+                            AU = mp_norm(AU.*aU{rkey(k,j)});
                         end
                     end
                     if isfield(A{k},'g')

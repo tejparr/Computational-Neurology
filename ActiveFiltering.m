@@ -1,5 +1,5 @@
-function [Y,M,t,a] = ActiveFiltering(f,F,Pf,g,G,Pg,x0,m0,n,s,dt,T,a0,y,yc)
-% Format [Y,M,t,a] = ActiveFiltering(f,F,Pf,g,G,Pg,x0,m0,n,s,dt,T,a0,y,yc)
+function [Y,M,t,a,X] = ActiveFiltering(f,F,Pf,g,G,Pg,x0,m0,n,s,dt,T,a0,y,yc)
+% Format [Y,M,t,a,X] = ActiveFiltering(f,F,Pf,g,G,Pg,x0,m0,n,s,dt,T,a0,y,yc)
 % Generates a data timeseries Y and belief timeseries M with times t
 %
 % f, F       are the flow functions for model and process
@@ -96,9 +96,9 @@ end
 %--------------------------------------------------------------------------
 Pg = (pinv(kron(A,pinv(Pg))));
 Pf = (pinv(kron(A,pinv(Pf))));
-D  = eye(n);
-D  = [D(2:n,:);zeros(1,n)];
-D  = sparse(kron(D,eye(Nf)));
+Dn = eye(n);
+Dn = [Dn(2:n,:);zeros(1,n)];
+D  = sparse(kron(Dn,eye(Nf)));
 
 % Main time loop
 %--------------------------------------------------------------------------
@@ -157,10 +157,17 @@ for i = 1:Nt-1
     DgJ   = kron(eye(n),gJ);
     dFdx  = (DfJ - D)'*Pf*(D*m - cat(1,f0{:})) + DgJ'*Pg*(yY - cat(1,g0{:}));
     dFdxx = -(DfJ - D)'*Pf*(DfJ - D) - DgJ'*Pg*DgJ;
+    dFdxx = (dFdxx + dFdxx')/2; % ensure symmetry
 
     % Update beliefs
     %----------------------------------------------------------------------
     m = m + pinv(dFdxx + D)*(expm(dt*(dFdxx + D)) - eye(Nf*n))*(dFdx + D*m);
+
+    % Block matrix version of above integrator 
+    % (avoiding need for explicit matrix inversion)
+    % B = [dFdxx + D, dFdx + D*m; zeros(1,length(m)),0];
+    % E = expm(dt*B);
+    % m = m + E(1:length(m),end);
 
     % Reshape and store updated beliefs
     %----------------------------------------------------------------------
@@ -189,6 +196,10 @@ for i = 1:Nt-1
         % Update states without action
         X{1}(:,i+1) = X{1}(:,i) + (expm(dt*FJ) - eye(Nf))*pinv(FJ)*F0{1};
     end
+end
+
+if isempty(a0)
+    a = a0;
 end
 
 function J = AF_dfdx(f,x,a,n)
