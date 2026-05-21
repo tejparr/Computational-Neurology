@@ -316,8 +316,11 @@ for t = 1:T
     % Here the actions are selected directly by sampling from the
     % distribution over paths. 
     
-    % vi = find(rand<cumsum(P));    
-    [~,vi] = max(P);
+    if isfield(pomdp,'randact')
+        vi = find(rand<cumsum(P)); % sample actions   
+    else
+        [~,vi] = max(P);           % MAP action
+    end
     u(:,t) = V(vi(1),:)';
 
     if isfield(pomdp,'proprioception')
@@ -502,8 +505,8 @@ for k = 1:size(V,1)
                 Qo     = mp_dot(pomdp.A{j},U{k}(pomdp.dom.A(j).s));   % Predictive posterior
                 Ha     = -sum(pomdp.A{j}.*mp_log(pomdp.A{j}),1);      % Conditional entropy
             end
-            C(k)  = C(k) + Qo'*pomdp.C{j};                            % Expected utility
-            Ho(k) = Ho(k) - Qo'*mp_log(Qo);                           % Predictive entropy
+            C(k)  = C(k) + Qo.'*pomdp.C{j};                           % Expected utility
+            Ho(k) = Ho(k) - Qo.'*mp_log(Qo);                          % Predictive entropy
             if isscalar(Ha)
                 HA(k) = HA(k) + Ha;
             else
