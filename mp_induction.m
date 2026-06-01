@@ -27,7 +27,7 @@ H = ones(numel(Q),1);             % Initialise plausible actions
 %--------------------------------------------------------------------------
 for i = 1:length(ind)                                                       % Loop over state factors
     k(i) = h{ind(i)}(1);                                                    % Index of mandatory state in each factor
-    if isempty(dom(ind(i)).s)                                               % If sparse dependencies between factors, use mean-field-like assumption
+    if isempty(dom(ind(i)).s) || isfield(dom(ind(i)),'mf')                  % If sparse dependencies between factors, use mean-field-like assumption
         b{i} = sum(B{ind(i)},3:ndims(B{ind(i)})) > 1/8;                     % Plausible state transitions (collapsing over actions)
     else                                                                    % For denser transition structures....
         [sU,iU,Ui] = intersect(dom(ind(i)).u,[dom([dom(ind(i)).s]).u]);     % Find shared actions with states in domain
@@ -55,7 +55,7 @@ n = 0;                                                                      % in
 while z == 0 && n < 64                                                      % continue either until maximum number of steps or goal reached
     q = true(numel(Q),1);                                                   % initialise within each loop to say 'true' that each of the possible next states is on the path to the mandated state
     for i = 1:length(ind)                                                   % loop over factors with mandated states
-        if isempty(dom(ind(i)).s)                                           % In the sparse dependency setting...
+        if isempty(dom(ind(i)).s) || isfield(dom(ind(i)),'mf')              % In the sparse dependency setting...
             K = zeros(size(b{i},1),1);                                      % Create one-hot vectors...
             K(k(i)) = 1;                                                    % ...for mandated states
             for j = 1:numel(Q)                                              % Loop over possible next steps from current position
