@@ -9,6 +9,12 @@ catch
     noplot = true;
 end
 
+try
+    kappa = OPT.kappa;
+catch
+    kappa = 512;
+end
+
 % First, find the lengths of the shortest paths between mandatory states
 %==========================================================================
 Ih = ~cellfun(@isempty,h);     % Identify factors with mandatory states
@@ -59,144 +65,11 @@ G = G - diag(diag(G));
 % Prune graph to ensure is bipartite (minimum pruning)
 %==========================================================================
 
-% Identify triangles
-%--------------------------------------------------------------------------
-[g,k]   = sort(diag(G^3),'ascend');
-k       = k(g>0); % nodes participating in triangles, ranked in ascending 
-                  % order by the number of triangles in which they 
-                  % participate
-
-% Identify which lines in the triangle are segments of longer, straight,
-% lines and preferentially preserve these
-%--------------------------------------------------------------------------
-
-if ~noplot
-    subplot(4,4,1)
-    Gplot = plot(graph(G));
-    Gplot.XData = H{2}(1:end-1);
-    Gplot.YData = H{1}(1:end-1);
-    % Gplot.NodeLabel = {};      
-    axis ij
-    sp = 2;
-end
-
-while ~isempty(k)
-    kk = find(G(:,k(1)));
-    [~,~,j]  = intersect(find(G*G(:,k(1))),kk);  % nodes on a triangle with k(1)
-    [j1,j2] = find(G(kk(j),kk(j)),1);
-    cn   = [kk(j(j1)) kk(j(j2)) k(1)];
-    nc   = perms(cn);                            % then determine combinations of these nodes
-    Z    = mp_momentum_score(nc,H);              % compute momentum scores
-    
-    % Account for additional connections
-    for i = 1:size(nc,1)
-        i1 = setdiff(find(G(:,nc(i,1))),nc(i,:));
-        i2 = setdiff(find(G(:,nc(i,2))),nc(i,:));
-        i3 = setdiff(find(G(:,nc(i,3))),nc(i,:));
-        if ~isempty(i1)
-            W = max([mp_momentum_score([i1 ones(size(i1))*[nc(i,1) nc(i,2)]],H);0]);
-        else
-            W = 0;
-        end
-        if ~isempty(i2)
-            W = W + max([max(mp_momentum_score([i2 ones(size(i2))*[nc(i,2) nc(i,1)]],H)); ...
-                        max(mp_momentum_score([i2 ones(size(i2))*[nc(i,2) nc(i,3)]],H));0]);
-        end
-        if ~isempty(i3)
-            W  = W + max([mp_momentum_score([i3 ones(size(i3))*[nc(i,3) nc(i,2)]],H);0]);
-        end
-        Z(i) = Z(i) + W;
-    end
-
-    [~,z] = max(Z);                              % find pair of edges with maximum momentum
-
-    % Disconnect the two nodes at ends of this edge
-    G(nc(z,1),nc(z,3)) = 0;   
-    G(nc(z,3),nc(z,1)) = 0;
-    L(nc(z,1),nc(z,3)) = L(nc(z,1),nc(z,3)) + 1/2;  
-    L(nc(z,3),nc(z,1)) = L(nc(z,3),nc(z,1)) + 1/2;  
-
-    if ~noplot
-        subplot(4,4,sp)
-        cla
-        Gplot = plot(graph(G));
-        Gplot.XData = H{2}(1:end-1);
-        Gplot.YData = H{1}(1:end-1);
-        Gplot.NodeLabel = {};      
-        axis ij
-        sp = sp+1;
-        sp(sp>16) = 1;
-        drawnow
-    end
-    
-    [g,k]   = sort(diag(G^3),'ascend');
-    k       = k(g>0);
-end
+[G,L] = mp_remove_triangles(G,noplot,H,L);
 
 % Then duplicate remaining nodes with degree > 2 and distribute their edges
-p = sum(ceil(bsxfun(@max,sum(G)-2,0)/2));
-G = mp_padarray(G,p*ones(1,2),0,'pre');
-L = mp_padarray(L,p*ones(1,2),64,'pre');
-for i = 1:numel(H)
-    H{i} = mp_padarray(H{i},p,0,'pre');
-end
-
-for n = p:-1:1
-    [~,k]    = sort(sum(G),'descend');                  % Sort nodes by degree
-    [l,j]    = sort(sum(G*diag(G(:,k(1)))),'descend');  % Find nodes connected to maximum degree node that are not roots/leaves
-    [~,~,ui] = unique(l(l>0));
-
-    if length(ui(ui>0))>2 % If there are multiple plausible ways of defining intersection
-        cn = j(ui>0);     % Candidate nodes to be connected
-        nc = nchoosek(cn,2);     % list permutations of intersections
-        nc = [nc(:,1) k(1)*ones(size(nc,1),1) nc(:,2)]; % include node to be duplicated
-        
-        % Evaluate under conservation of momentum prior (this assumes the
-        % state coordinates have an implicit metric meaning)
-        Z = mp_momentum_score(nc,H);
-
-        [~,zi] = sort(Z,'descend');
-        for iz = 1:length(zi)
-            cn(2*(iz-1) + (1:2)) = [nc(zi(iz),1) nc(zi(iz),3)];
-        end
-        [cni, ~, cnj] = unique(cn,'stable');
-        j(ui>0) = cni(cnj(1:length(cni)));
-    end
-
-    for i = 1:numel(H)
-        H{i}(n) = H{i}(k(1));
-    end
-
-    L(n,:)         = L(k(1),:);
-    L(:,n)         = L(:,k(1));
-    L(k(1),n)      = 1/2;
-    L(n,k(1))      = 1/2;
-    L(k(1),j(1:2)) = L(k(1),j(1:2)) + 1/2;
-    L(j(1:2),k(1)) = L(j(1:2),k(1)) + 1/2;
-
-    G(n,j(1:2))    = G(k(1),j(1:2));
-    G(j(1:2),n)    = G(j(1:2),k(1));
-    G(k(1),j(1:2)) = 0;
-    G(j(1:2),k(1)) = 0;
-end
-
-if ~noplot
-    subplot(4,4,sp)
-    Gplot = plot(graph(G));
-    Gplot.XData = H{2}(1:end-1);
-    Gplot.YData = H{1}(1:end-1);
-    [~,u,~] = unique([Gplot.XData; Gplot.YData]','rows','stable');
-    if length(u) < length(H{1})-1
-        m = setdiff(1:length(H{1})-1,u);
-        Gplot.XData(m) = Gplot.XData(m)+1/2;
-        Gplot.YData(m) = Gplot.YData(m)+1/2;
-    end
-    Gplot.NodeLabel = {};
-    axis ij
-    drawnow
-    sp = sp + 1;
-    sp(sp>16) = 1;
-end
+%--------------------------------------------------------------------------
+[G,L,H] = mp_duplicate_node(G,noplot,L,H,kappa);
 
 try
     [C,d] = mp_graph_cluster(G);
@@ -207,7 +80,7 @@ try
     d = d(setdiff(1:numel(d),i));
     if ~noplot
         for i = 1:numel(C)
-            subplot(4,4,sp)
+            subplot(2,1,1)
             Gplot = plot(graph(G(C{i},C{i})));
             Gplot.XData = H{2}(C{i});
             Gplot.YData = H{1}(C{i});
@@ -218,10 +91,11 @@ try
                 Gplot.YData(m) = Gplot.YData(m)+1/2;
             end
             Gplot.NodeLabel = {};
-            axis ij
+            axis ij, axis square
             hold on
         end
         drawnow
+        % cn_animation(2,2,1,'Graphics','GraphOperations')
     end
     rH    = mp_subgoal(H,L,G,C,d);
 catch
@@ -250,4 +124,168 @@ for ic = 1:size(nc,1)
         end
     end
     Z(ic) = (X(:,2)-X(:,1))'*(X(:,3)-X(:,2))/(vecnorm(X(:,2)-X(:,1))*vecnorm(X(:,3)-X(:,2)));
+end
+
+function [G,L,H] = mp_duplicate_node(G,noplot,L,H,kappa)
+% This function takes an almost bipartite graph with triangles removed and
+% deals with intersections in the remaining graph by duplicating a node and
+% assigning the two nodes to alternative line segments.
+%--------------------------------------------------------------------------
+
+p = sum(ceil(bsxfun(@max,sum(G)-2,0)/2));
+G = mp_padarray(G,p*ones(1,2),0,'pre');
+L = mp_padarray(L,p*ones(1,2),64,'pre');
+for i = 1:numel(H)
+    H{i} = mp_padarray(H{i},p,0,'pre');
+end
+
+for n = p:-1:1
+    [~,k]    = sort(sum(G),'descend');                  % Sort nodes by degree
+    [l,j]    = sort(sum(G*diag(G(:,k(1)))),'descend');  % Find nodes connected to maximum degree node that are not roots/leaves
+    [~,~,ui] = unique(l(l>0));
+
+    if length(ui(ui>0))>2                               % If there are multiple plausible ways of defining intersection
+        cn = j(ui>0);                                   % Candidate nodes to be connected
+        nc = nchoosek(cn,2);                            % list permutations of intersections
+        nc = [nc(:,1) k(1)*ones(size(nc,1),1) nc(:,2)]; % include node to be duplicated
+        Z = mp_momentum_score(nc,H);                    % Evaluate under conservation of momentum prior (this assumes the
+                                                        % state coordinates have an implicit metric meaning)
+
+        % Fully determinstic version
+        %==================================================================
+        % [~,zi] = sort(Z,'descend');                     % Sort possible bipartite connections between three nodes by momentum
+        % for iz = 1:length(zi)                           % Concatenate the sequences of connecting points into a single vector
+        %     cn(2*(iz-1) + (1:2)) = [nc(zi(iz),1) nc(zi(iz),3)];
+        % end
+        %==================================================================
+
+        Pz = mp_softmax(kappa*Z);                      
+        for iz = 1:length(Pz)
+            zi = find(rand<cumsum(Pz),1,'first');
+            cn(2*(iz-1) + (1:2)) = [nc(zi,1) nc(zi,3)];
+            Z(zi) = -64;
+            Pz = mp_softmax(kappa*Z);  
+        end
+        [cni, ~, cnj] = unique(cn,'stable');            % Obtain the unique connecting points with the first pair being those with highest momentum
+        j(ui>0) = cni(cnj(1:length(cni)));              % Reorder the relevant elements in the j-array
+    end
+
+    % Complete duplication process
+    %----------------------------------------------------------------------
+    for i = 1:numel(H)
+        H{i}(n) = H{i}(k(1));
+    end
+
+    % Ensure duplicate node is connected to the two edges ensuring greatest
+    % momentum, and disconnect these from the original node
+    %----------------------------------------------------------------------
+    L(n,:)         = L(k(1),:);
+    L(:,n)         = L(:,k(1));
+    L(k(1),n)      = 1/2;
+    L(n,k(1))      = 1/2;
+    L(k(1),j(1:2)) = L(k(1),j(1:2)) + 1/2;
+    L(j(1:2),k(1)) = L(j(1:2),k(1)) + 1/2;
+
+    G(n,j(1:2))    = G(k(1),j(1:2));
+    G(j(1:2),n)    = G(j(1:2),k(1));
+    G(k(1),j(1:2)) = 0;
+    G(j(1:2),k(1)) = 0;
+end
+
+if ~noplot
+    subplot(2,1,1)
+    Gplot = plot(graph(G));
+    Gplot.XData = H{2}(1:end-1);
+    Gplot.YData = H{1}(1:end-1);
+    [~,u,~] = unique([Gplot.XData; Gplot.YData]','rows','stable');
+    if length(u) < length(H{1})-1
+        m = setdiff(1:length(H{1})-1,u);
+        Gplot.XData(m) = Gplot.XData(m)+1/2;
+        Gplot.YData(m) = Gplot.YData(m)+1/2;
+    end
+    Gplot.NodeLabel = {};
+    axis ij, axis square
+    drawnow
+    % cn_animation(2,2,1,'Graphics','GraphOperations')
+end
+
+function [G,L] = mp_remove_triangles(G,noplot,H,L)
+% This function performs a first step towards reducing a graph to make it
+% bipartite. This involves finding triangles and removing edges until these
+% are all eliminated.
+%--------------------------------------------------------------------------
+
+% Identify triangles
+%--------------------------------------------------------------------------
+[g,k]   = sort(diag(G^3),'ascend');
+k       = k(g>0); % nodes participating in triangles, ranked in ascending 
+                  % order by the number of triangles in which they 
+                  % participate
+
+% Identify which lines in the triangle are segments of longer, straight,
+% lines and preferentially preserve these
+%--------------------------------------------------------------------------
+
+if ~noplot
+    % subplot(4,4,1)
+    subplot(2,1,1)
+    Gplot = plot(graph(G));
+    Gplot.XData = H{2}(1:end-1);
+    Gplot.YData = H{1}(1:end-1);   
+    Gplot.NodeLabel = {};      
+    axis ij, axis square
+    % cn_animation(1,2,0.5,'Graphics','GraphOperations')
+end
+
+while ~isempty(k)
+    kk = find(G(:,k(1)));
+    [~,~,j]  = intersect(find(G*G(:,k(1))),kk);  % nodes on a triangle with k(1)
+    [j1,j2] = find(G(kk(j),kk(j)),1);
+    cn   = [kk(j(j1)) kk(j(j2)) k(1)];
+    nc   = perms(cn);                            % then determine combinations of these nodes
+    Z    = mp_momentum_score(nc,H);              % compute momentum scores
+
+    % Account for additional connections
+    for i = 1:size(nc,1)
+        i1 = setdiff(find(G(:,nc(i,1))),nc(i,:));
+        i2 = setdiff(find(G(:,nc(i,2))),nc(i,:));
+        i3 = setdiff(find(G(:,nc(i,3))),nc(i,:));
+        if ~isempty(i1)
+            W = max([mp_momentum_score([i1 ones(size(i1))*[nc(i,1) nc(i,2)]],H);0]);
+        else
+            W = 0;
+        end
+        if ~isempty(i2)
+            W = W + max([max(mp_momentum_score([i2 ones(size(i2))*[nc(i,2) nc(i,1)]],H)); ...
+                max(mp_momentum_score([i2 ones(size(i2))*[nc(i,2) nc(i,3)]],H));0]);
+        end
+        if ~isempty(i3)
+            W  = W + max([mp_momentum_score([i3 ones(size(i3))*[nc(i,3) nc(i,2)]],H);0]);
+        end
+        Z(i) = Z(i) + W;
+    end
+
+    [~,z] = max(Z); % find pair of edges with maximum momentum
+
+    % Disconnect the two nodes at ends of this edge
+    %----------------------------------------------------------------------
+    G(nc(z,1),nc(z,3)) = 0;   
+    G(nc(z,3),nc(z,1)) = 0;
+    L(nc(z,1),nc(z,3)) = L(nc(z,1),nc(z,3)) + 1/2;  
+    L(nc(z,3),nc(z,1)) = L(nc(z,3),nc(z,1)) + 1/2;  
+
+    if ~noplot
+        subplot(2,1,1)
+        cla
+        Gplot = plot(graph(G));
+        Gplot.XData = H{2}(1:end-1);
+        Gplot.YData = H{1}(1:end-1);
+        Gplot.NodeLabel = {};      
+        axis ij, axis square
+        drawnow
+        % cn_animation(2,2,0.2,'Graphics','GraphOperations')
+    end
+
+    [g,k]   = sort(diag(G^3),'ascend');
+    k       = k(g>0);
 end

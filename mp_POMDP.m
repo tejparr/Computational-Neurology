@@ -56,9 +56,9 @@ try B = pomdp.B; catch, b = pomdp.b;      end % Transition probabilities
 try D = pomdp.D; catch, d = pomdp.d;      end % Initial state probabilities
 
 if ...                                        % If Dirichlet parameters used...
-        isfield('a',pomdp) || isfield('b',pomdp) ||... 
-        isfield('c',pomdp) || isfield('d',pomdp) || ...
-        isfield('e',pomdp)  
+        isfield(pomdp,'a') || isfield(pomdp,'b') ||... 
+        isfield(pomdp,'c') || isfield(pomdp,'d') || ...
+        isfield(pomdp,'e')  
     pomdp.smooth = 1;                         % ... then ensure smoothing step in place to learn
 end
 
@@ -83,6 +83,9 @@ try N = pomdp.N;     catch, N = 1;   end % assume 1-step ahead unless otherwise 
 
 % Option to factorise over time
 try fac = pomdp.fac; catch, fac = 0; end % assume no factorisation over time unless specified
+
+% Options for ordering routines
+try ORD = pomdp.ORD; catch, ORD = [];end % assume determinstic ordering unless otherwise specified
 
 % Identify indices of each variable type
 %--------------------------------------------------------------------------
@@ -237,7 +240,7 @@ for t = 1:T
             % If mandatory states are specified, ensure their order is optimised
             %--------------------------------------------------------------
             if isfield(pomdp,'h') && any(cellfun(@(x) length(x)>1,pomdp.h))
-                pomdp.H = mp_pomdp_order(pomdp.h,pomdp.B,D,dom);
+                pomdp.H = mp_pomdp_order(pomdp.h,pomdp.B,D,dom,ORD);
             end
         end    
     end
@@ -297,7 +300,7 @@ for t = 1:T
         % If mandatory states are specified, ensure their order is optimised
         %------------------------------------------------------------------
         if isfield(pomdp,'h')
-            pomdp.H = mp_pomdp_order(pomdp.h,pomdp.B,Q{1}.s(ind.D));
+            pomdp.H = mp_pomdp_order(pomdp.h,pomdp.B,Q{1}.s(ind.D),ORD);
         end
     end    
 
@@ -373,10 +376,33 @@ if isfield(pomdp,'smooth')
     ind.B = max(ind.E) + (1:numel(B)*(T-1));
     ind.A = max(ind.B) + (1:numel(A)*T);
     M.G   = mp_POMDP_B(ind, dom, T);
+
+    % If available, include Dirichlet parameters
+    %----------------------------------------------------------------------
+    Dp = [isfield(pomdp,'a') ; isfield(pomdp,'b') ;... 
+          isfield(pomdp,'d') ; isfield(pomdp,'e')]; 
+
+    if any(Dp)
+        M.g = -ones(numel(M.A),1);
+        M.a = {};
+        if Dp(1), M.a = [M.a;a]; M.g(ind.A) = repmat(1:numel(a),1,T);                  end
+        if Dp(2), M.a = [M.a;b]; M.g(ind.B) = repmat(sum(M.g>0) + (1:numel(b)),1,T-1); end
+        if Dp(3), M.a = [M.a;d]; M.g(ind.D) = sum(M.g>0) + (1:numel(d));               end
+        if Dp(4), M.a = [M.a;e]; M.g(ind.E) = repmat(sum(M.g>0) + (1:numel(e)),1,T-1); end
+    end
+
     M.acyclic = false;
     BS    = MessagePassing(M,pomdp.o(:));
     pomdp.BS.s = reshape(BS.s([ind.D ind.B]),[],T);
     pomdp.BS.u = BS.s([ind.E]);
+
+    if any(Dp)
+        ndp = 0;
+        if Dp(1), pomdp.BS.a = BS.a(1:numel(a)); ndp = numel(a);               end
+        if Dp(2), pomdp.BS.b = BS.a(ndp + (1:numel(b))); ndp = ndp + numel(b); end
+        if Dp(3), pomdp.BS.d = BS.a(ndp + (1:numel(d))); ndp = ndp + numel(d); end
+        if Dp(4), pomdp.BS.e = BS.a(ndp + (1:numel(e)));                       end
+    end
 end
 
 POMDP = pomdp;

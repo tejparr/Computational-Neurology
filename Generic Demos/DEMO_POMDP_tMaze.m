@@ -87,6 +87,7 @@ mdp.B = B(:);
 mdp.C = C(:);
 mdp.D = D(:);
 mdp.E = E(:);
+mdp.d = D(:);
 
 % Set domains (i.e., parents for each factor)
 %--------------------------------------------------------------------------
