@@ -116,6 +116,13 @@ MDP = mp_POMDP(mdp);
 mdp_tMaze_plot(MDP,OPTIONS)
 mp_pomdp_belief_plot(MDP)
 
+% Assess learning
+%--------------------------------------------------------------------------
+s = ones(2,8);
+mp_POMDP_Block(mdp,s);
+
+
+
 function [o,s] = mdp_tMaze_gen(s,u,~,~)
 % Function for generative process. The arguments are states, actions, and 
 % posterior predictions. The final argument would be the pomdp structure

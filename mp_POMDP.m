@@ -69,10 +69,10 @@ T = pomdp.T;                                  % Time horizon
 if isfield(pomdp,'E'),   E = pomdp.E;     end % Prior over paths
 
 % Dirichlet priors (duplicate of above if only Dirichlet priors specified)
-if isfield(pomdp,'a'),   a = pomdp.a;     end % likelihood
-if isfield(pomdp,'b'),   b = pomdp.b;     end % transitions
-if isfield(pomdp,'d'),   d = pomdp.d;     end % initial states
-if isfield(pomdp,'e'),   e = pomdp.e;     end % paths
+if isfield(pomdp,'a'),   a = pomdp.a;  A = cellfun(@mp_norm,a,'UniformOutput',false);  end % likelihood
+if isfield(pomdp,'b'),   b = pomdp.b;  B = cellfun(@mp_norm,b,'UniformOutput',false);  end % transitions
+if isfield(pomdp,'d'),   d = pomdp.d;  D = cellfun(@mp_norm,d,'UniformOutput',false);  end % initial states
+if isfield(pomdp,'e'),   e = pomdp.e;  E = cellfun(@mp_norm,e,'UniformOutput',false);  end % paths
 
 % Domains and controllable paths
 if isfield(pomdp,'dom'), dom = pomdp.dom; end % domains
