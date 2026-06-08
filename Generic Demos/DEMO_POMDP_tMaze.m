@@ -89,6 +89,10 @@ mdp.D = D(:);
 mdp.E = E(:);
 mdp.d = D(:);
 
+for i = 1:numel(mdp.d)
+    mdp.d{i} = mdp.d{i}*8;
+end
+
 % Set domains (i.e., parents for each factor)
 %--------------------------------------------------------------------------
 mdp.dom.B(1).s = []; % Note that it is assumed that B's depend upon self-states

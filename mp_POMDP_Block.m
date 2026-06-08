@@ -1,6 +1,7 @@
-function POMDP = mp_POMDP_Block(pomdp,s,noplot)
+function POMDP = mp_POMDP_Block(pomdp,s,GP,noplot)
 % POMDP = mp_POMDP_Block(pomdp,s)
 % pomdp - Partially Observed Markov Decision Process
+% GP    - Cell of variables to include detailing generative process parameters
 % s     - Matrix (factor x trial) of initial states
 %
 % This function is designed to simulate a block of trials using the
@@ -9,7 +10,7 @@ function POMDP = mp_POMDP_Block(pomdp,s,noplot)
 % counts across the block of trials.
 %--------------------------------------------------------------------------
 
-if nargin < 3, noplot = false; end
+if nargin < 4, noplot = false; end
 
 N     = size(s,2); % Number of trials in a block
 POMDP = cell(N,1); % Initialise POMDP array
@@ -19,6 +20,10 @@ fields = {'a','b','c','d','e'};
 
 for i = 1:N
     pomdp.s  = s(:,i);          % Set initial states
+    if nargin > 2
+        pomdp.GP = GP{i};       % Include generative process parameters
+    end
+
     POMDP{i} = mp_POMDP(pomdp); % Solve POMDP
     
     for k = 1:numel(fields)     % Update Dirichlet counts

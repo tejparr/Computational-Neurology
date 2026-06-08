@@ -369,10 +369,21 @@ end
 % Bayesian smoothing
 %--------------------------------------------------------------------------
 if isfield(pomdp,'smooth')
-    M.A = [pomdp.D(:);pomdp.P(1:end-1);repmat(B(:), T-1, 1);repmat(A(:), T, 1)];
+
+    % Compute marginals for path types
+    %----------------------------------------------------------------------
+    R = cell(size(V,2),T-1);
+    for t = 1:T-1
+        p = pomdp.P{t};
+        for i = 1:size(V,2)
+            R{i,t} = accumarray(V(:,i), p);
+        end
+    end
+
+    M.A = [pomdp.D(:);R(:);repmat(B(:), T-1, 1);repmat(A(:), T, 1)];
     
     ind.D = 1:numel(D);
-    ind.E = max(ind.D) + (1:numel(pomdp.P)-1);
+    ind.E = max(ind.D) + (1:numel(R));
     ind.B = max(ind.E) + (1:numel(B)*(T-1));
     ind.A = max(ind.B) + (1:numel(A)*T);
     M.G   = mp_POMDP_B(ind, dom, T);

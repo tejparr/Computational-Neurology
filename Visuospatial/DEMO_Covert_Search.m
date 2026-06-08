@@ -203,7 +203,12 @@ mdp.T   = T;
 mdp.gen = @mdp_covert_search_gen;
 mdp.N   = 1;                % Planning horizon
 mdp.fac = 1;                % Option to separate evaluation of likelihood and transitions into 2 steps
-mdp.s   = [7 X.tar X.col(X.tar) X.sha(X.tar) 4 1]'; % Initial states
+mdp.s   = [7;               % Focus of covert attention (6 radial locations and central fixation)
+           X.tar;           % Location of target
+           X.col(X.tar);    % Color of target (R/G/B)
+           X.sha(X.tar);    % Shape of target (T/S/C)
+           4;               % Button press (R/G/B/none)
+           1];              % Stage of task (cue, delay, stimulus)
 mdp.GP  = X; % for gen process
 
 % Solve MDP
@@ -212,6 +217,35 @@ MDP = mp_POMDP(mdp);
 
 mdp_plot_covert(MDP,OPTIONS)
 mp_pomdp_belief_plot(MDP);
+
+% Solve with learning over multiple trials (target location fixed)
+%--------------------------------------------------------------------------
+mdp.d = mdp.D;
+
+N  = 8;                         % Number of trials to simulate
+GP = cell(N,1);                 % Initialise parameters for generative process
+s  = zeros(size(mdp.s,1),N);    % Initialise initial states
+
+X.tar = 4;
+for i = 1:N
+    X.col = randi(3,[1,6]);
+    rs    = randi(3,1);
+    sr    = setdiff(1:3,rs);
+    X.sha = sr(randi(2,[1,6]));
+    X.sha(X.tar) = rs;
+    s(:,i) =  [7;               % Focus of covert attention (6 radial locations and central fixation)
+               X.tar;           % Location of target
+               X.col(X.tar);    % Color of target (R/G/B)
+               X.sha(X.tar);    % Shape of target (T/S/C)
+               4;               % Button press (R/G/B/none)
+               1];              % Stage of task (cue, delay, stimulus)
+    GP{i} = X;
+end
+
+BOMDP = mp_POMDP_Block(mdp,s,GP);
+
+mdp_plot_covert(BOMDP{end},OPTIONS)
+mp_pomdp_belief_plot(BOMDP{end});
 
 case 2
 
@@ -623,7 +657,7 @@ for t = 1:pomdp.T           % Time loop
     % Depress active button
     %----------------------------------------------------------------------
     if resp >= 1 && resp <= 3
-        hBtn(resp).MarkerFaceColor = col{resp,:};
+        hBtn(resp).MarkerFaceColor = col{resp};
     end
     pause(1)
     drawnow limitrate
