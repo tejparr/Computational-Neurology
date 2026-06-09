@@ -403,6 +403,8 @@ mdp.C = C;
 mdp.D = D;
 mdp.E = E;
 
+mdp.d = mdp.D;
+
 % Domains of probability distributions
 %--------------------------------------------------------------------------
 for i = 1:numel(D)
@@ -446,6 +448,33 @@ MDP = mp_POMDP(mdp);
 
 mdp_plot_covert(MDP,OPTIONS)
 mp_pomdp_belief_plot(MDP);
+
+
+N  = 8;                         % Number of trials to simulate
+GP = cell(N,1);                 % Initialise parameters for generative process
+s  = zeros(size(mdp.s,1),N);    % Initialise initial states
+
+X.tar = [1 4];
+for i = 1:N
+    X.col = randi(3,[2,6]);
+    rs    = randi(3,1);
+    sr    = setdiff(1:3,rs);
+    X.sha = sr(randi(2,[2,6]));
+    X.sha(X.tar(1),X.tar(2)) = rs;
+    s(:,i) = [3;                            % Focus of covert attention (2 peripheral locations and central fixation)
+              X.tar(1);                     % Location of target
+              X.col(X.tar(1),X.tar(2));     % Color of target (R/G/B)
+              X.sha(X.tar(1),X.tar(2));     % Shape of target (T/S/C)
+              4;                            % Button press (R/G/B/none)
+              1];                           % Stage of task (cue, delay, distractor, stimulus, distractor)
+    GP{i} = X;
+end
+
+BOMDP = mp_POMDP_Block(mdp,s,GP);
+
+mdp_plot_covert(BOMDP{end},OPTIONS)
+mp_pomdp_belief_plot(BOMDP{end});
+
 
 end
 

@@ -28,7 +28,7 @@ function [Q, F, U] = MessagePassing(M,Y)
 % Options
 %--------------------------------------------------------------------------
 options  = {'nograph', 'noprint', 'acyclic', 'Nmax', 'MAP', 'net', 'Q'};
-defaults = {0, 0, 0, 32, 0, 0, 1};
+defaults = {0, 0, 0, 128, 0, 0, 1};
 for i = 1:length(options)
     try
         M.(options{i});
