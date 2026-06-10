@@ -58,19 +58,21 @@ if ~noplot
 
     % Plot changing Dirichlet parameters over time
     %----------------------------------------------------------------------
-    fn = fieldnames(D);
-    nf = numel(fn);
+    try
+        fn = fieldnames(D);
+        nf = numel(fn);
 
-    for k = 1:nf
-        subplot(nf*3,1,nf+k)
-        Df = [D.(fn{k}){:}];
-        imagesc(max(Df(:))-Df)
-        colormap gray
-        title(['Dirichlet counts - ' fn{k}])
-        ylabel('Parameter')
-        xlabel('Timestep')
+        for k = 1:nf
+            subplot(nf*3,1,nf+k)
+            Df = [D.(fn{k}){:}];
+            imagesc(max(Df(:))-Df)
+            colormap gray
+            title(['Dirichlet counts - ' fn{k}])
+            ylabel('Parameter')
+            xlabel('Timestep')
+        end
+    catch
     end
-
 end
 
 function c = pomdp_block_vcat(C)
