@@ -1,4 +1,4 @@
-function h = mp_pomdp_order(h,B,Q,dom,OPT)
+function [h,c] = mp_pomdp_order(h,B,Q,dom,OPT)
 % Function that optimises the order of the mandatory states h given
 % transitions B and beliefs about the initial location Q.
 %--------------------------------------------------------------------------
@@ -97,9 +97,10 @@ try
         drawnow
         % cn_animation(2,2,1,'Graphics','GraphOperations')
     end
-    rH    = mp_subgoal(H,L,G,C,d);
+    [rH,c]    = mp_subgoal(H,L,G,C,d);
 catch
     rH = H;
+    c  = 1;
 end
 
 % Repackage in original h structure:

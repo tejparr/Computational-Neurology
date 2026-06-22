@@ -1,4 +1,4 @@
-function rH = mp_subgoal(H,L,G,C,d)
+function [rH,c] = mp_subgoal(H,L,G,C,d)
 % Takes a set of subgoals H, a distance matrix L, graph clusters C, and 
 % leaf/root nodes d, and returns a re-ordered list of subgoals rH.
 %--------------------------------------------------------------------------
