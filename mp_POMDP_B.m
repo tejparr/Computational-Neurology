@@ -5,10 +5,11 @@ function G = mp_POMDP_B(ind, dom, T)
 % enabling Bayesian smoothing.
 %--------------------------------------------------------------------------
 
-G  =  cell(max(ind.A),1);
+G  =  cell(max(ind.O),1);
 Nb =  length(ind.B)/(T-1);
 Ne =  length(ind.E)/(T-1);
 Na =  length(ind.A)/T;
+No =  length(ind.O);
 
 % Connect states at t = 2 to states at t = 1 and paths from 1 to 2
 %--------------------------------------------------------------------------
@@ -36,4 +37,10 @@ for t = 2:T
     for i = 1:Na
         G{ind.A((t-1)*Na + i)} = ind.B((t-2)*Nb + dom.A(i).s);
     end
+end
+
+% For final states, add uninformative outcomes
+%--------------------------------------------------------------------------
+for i = 1:No
+    G{ind.O(i)} = ind.B((t-2)*Nb + i);
 end

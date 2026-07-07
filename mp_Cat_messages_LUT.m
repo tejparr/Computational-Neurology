@@ -7,7 +7,7 @@ function [Ma, Md, F, H] = mp_Cat_messages_LUT(aM, dM, lut)
 % Md  - descending messages from factor (from children)
 % lut - look-up table playing the role of sparse, deterministic, 
 %       probability tensor. This is computed from a probability tensor by
-%       mp_lut_precompute.m
+%       mp_lut.m
 %__________________________________________________________________________
 % This function takes messages to a categorical probability factor and
 % computes messages from this factor. By default, a belief-propagation

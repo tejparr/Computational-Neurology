@@ -380,12 +380,13 @@ if isfield(pomdp,'smooth')
         end
     end
 
-    M.A = [pomdp.D(:);R(:);repmat(B(:), T-1, 1);repmat(A(:), T, 1)];
+    M.A = [pomdp.D(:);R(:);repmat(B(:), T-1, 1);repmat(A(:), T, 1); O];
     
     ind.D = 1:numel(D);
     ind.E = max(ind.D) + (1:numel(R));
     ind.B = max(ind.E) + (1:numel(B)*(T-1));
     ind.A = max(ind.B) + (1:numel(A)*T);
+    ind.O = max(ind.A) + (1:numel(O));
     M.G   = mp_POMDP_B(ind, dom, T);
 
     % If available, include Dirichlet parameters
@@ -403,7 +404,7 @@ if isfield(pomdp,'smooth')
     end
 
     M.acyclic = false;
-    BS    = MessagePassing(M,pomdp.o(:));
+    BS    = MessagePassing(M,[pomdp.o(:);ones(length(ind.O),1)]);
     pomdp.BS.s = reshape(BS.s([ind.D ind.B]),[],T);
     pomdp.BS.u = BS.s([ind.E]);
 
