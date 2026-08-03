@@ -15,6 +15,7 @@ rng default
 close all
 
 EXP = 1; % Choose experiment to simulate (1 = static array or 2 = dynamic streams)
+ACT = 1; % Switch that determines whether active (1) or passive (0) attention deployed
 
 %% EXPERIMENT 1
 %==========================================================================
@@ -128,11 +129,17 @@ end
 % Transitions
 %--------------------------------------------------------------------------
 B = cell(size(D));
+
 % Controllable focus of attention
 B{1} = zeros(Ns(1),Ns(1),Ns(1));
 for k = 1:Ns(1)
     B{1}(k,:,k) = 1;
 end
+
+if ~ACT
+    B{1} = mp_dot(B{1},{[ones(Ns(1)-1,1)*(1-e)/(Ns(1)-1);e]}); %#ok
+end
+
 
 % Fixed states (identity transitions)
 for s = 2:4
@@ -159,8 +166,12 @@ C{end} = [c1;0;-c2]; % Preference for correctness
 
 % Policies
 %--------------------------------------------------------------------------
-E{1} = [ones(Ns(1)-1,1)*(1-e)/(Ns(1)-1);e];
-E{2} = ones(Ns(5),1)/Ns(5);
+if ACT
+    E{1} = [ones(Ns(1)-1,1)*(1-e)/(Ns(1)-1);e];
+    E{2} = ones(Ns(5),1)/Ns(5);
+else
+    E{1} = ones(Ns(5),1)/Ns(5); %#ok
+end
 
 % Compile MDP
 %--------------------------------------------------------------------------
@@ -178,8 +189,12 @@ for i = 1:numel(D)
 end
 
 % assign policies to their states
-mdp.dom.B(1).u = 1;
-mdp.dom.B(5).u = 2;
+if ACT
+    mdp.dom.B(1).u = 1;
+    mdp.dom.B(5).u = 2;
+else
+    mdp.dom.B(5).u = 1; %#ok
+end
 
 for i = 1:Ns(2)
     mdp.dom.A(i).s = [1 2 3 6];
@@ -363,6 +378,10 @@ for k = 1:Ns(1)
     B{1}(k,:,k) = 1;
 end
 
+if ~ACT
+    B{1} = mp_dot(B{1},{[ones(Ns(1)-1,1)*(1-e)/(Ns(1)-1);e]}); %#ok
+end
+
 % Fixed states (identity transitions)
 for s = 2:4
     B{s} = eye(Ns(s));
@@ -392,8 +411,13 @@ C{end} = [c1;0;-c2]; % Preference for correctness
 
 % Policies
 %--------------------------------------------------------------------------
-E{1} = [ones(Ns(1)-1,1)*(1-e)/(Ns(1)-1);e];
-E{2} = ones(Ns(5),1)/Ns(5);
+if ACT
+    E{1} = [ones(Ns(1)-1,1)*(1-e)/(Ns(1)-1);e];
+    E{2} = ones(Ns(5),1)/Ns(5);
+else
+    E{1} = ones(Ns(5),1)/Ns(5); %#ok
+end
+
 
 % Compile MDP
 %--------------------------------------------------------------------------
@@ -413,8 +437,12 @@ for i = 1:numel(D)
 end
 
 % assign policies to their states
-mdp.dom.B(1).u = 1;
-mdp.dom.B(5).u = 2;
+if ACT
+    mdp.dom.B(1).u = 1;
+    mdp.dom.B(5).u = 2;
+else
+    mdp.dom.B(5).u = 1; %#ok
+end
 
 for i = 1:Ns(2)
     mdp.dom.A(i).s = [1 2 3 6];
@@ -484,7 +512,7 @@ function [o,s] = mdp_covert_search_gen(s,u,~,pomdp)
 GP = pomdp.GP;
 if nargout > 1 % Advance the states
     if s(5)==4
-        s(5) = u(2);
+        s(5) = u(end);
     end
     if isscalar(GP.tar)
         s(6) = min(s(6)+1,8);
