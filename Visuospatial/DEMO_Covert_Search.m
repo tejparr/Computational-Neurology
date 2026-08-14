@@ -53,7 +53,7 @@ D{2} = ones(6,1)/6;             % Location of target
 D{3} = ones(3,1)/3;             % Color of target (R/G/B)
 D{4} = ones(3,1)/3;             % Shape of target (T/S/C)
 D{5} = zeros(4,1); D{5}(4) = 1; % Button press (R/G/B/none)
-D{6} = zeros(8,1); D{6}(1) = 1; % Stage of task (cue, delay, stimulus)
+D{6} = zeros(3,1); D{6}(1) = 1; % Stage of task (cue, delay, stimulus)
 
 Ns   = zeros(numel(D),1);
 for f = 1:length(Ns)
@@ -77,19 +77,19 @@ for f1 = 1:Ns(1)
                         % shapes and all colours
                         for g = 1:Ns(2)
                             if g==f1
-                                if f1==f2 && f6>7
-                                    A{g}(f3,f1,f2,f3,f6) = a1;       % Color
+                                if f1==f2 && f6>2
+                                    A{g}(f3,f1,f2,f3,f6) = a1;                   % Colour
                                     A{g}(setdiff(1:Ns(3)+1,f3),f1,f2,f3,f6) = (1-a1)/Ns(3);
-                                    A{g+Ns(2)}(f4,f1,f2,f4,f6) = a2; % Shape
+                                    A{g+Ns(2)}(f4,f1,f2,f4,f6) = a2;             % Shape
                                     A{g+Ns(2)}(setdiff(1:Ns(4)+1,f4),f1,f2,f4,f6) = (1-a2)/Ns(4);
                                 else  
-                                    A{g}(1:Ns(3)+1,f1,f2,f3,f6) = 1/(Ns(3)+1);   % Color
-                                    A{g+Ns(2)}(f4,f1,f2,f4,f6) = 1-a2; % Shape
+                                    A{g}(1:Ns(3)+1,f1,f2,f3,f6) = 1/(Ns(3)+1);   % Colour
+                                    A{g+Ns(2)}(f4,f1,f2,f4,f6) = 1-a2;           % Shape
                                     A{g+Ns(2)}(setdiff(1:Ns(4)+1,f4),f1,f2,f4,f6) = a2/Ns(4);
                                 end
                             else
-                                A{g}(1:Ns(3)+1,f1,f2,f3,f6) = 1/(Ns(3)+1); % Color
-                                A{g+Ns(2)}(f4,f1,f2,f4,f6) = 1-a3; % Shape
+                                A{g}(1:Ns(3)+1,f1,f2,f3,f6) = 1/(Ns(3)+1);       % Colour
+                                A{g+Ns(2)}(f4,f1,f2,f4,f6) = 1-a3;               % Shape
                                 A{g+Ns(2)}(setdiff(1:Ns(4)+1,f4),f1,f2,f4,f6) = a3/Ns(4);
                             end
                         end
@@ -97,7 +97,7 @@ for f1 = 1:Ns(1)
                         % Instruction - this directly reports the shape of the
                         % target when focus is on the fovea
                         if f1==Ns(2)+1
-                            if f6<5 % if the cue is present
+                            if f6<2 % if the cue is present
                                 A{2*Ns(2)+1}(f4,f1,f4,f6) = 1;
                             else
                                 A{2*Ns(2)+1}(4,f1,f4,f6) = 1;
@@ -155,6 +155,7 @@ end
 
 % Progression of task
 B{6} = circshift(eye(size(D{6},1)),1); B{6}(1,end) = 0; B{6}(end,end) = 1;
+B{6} = 0.9*B{6} + 0.1*eye(size(B{6},1));
 
 % Preferences
 %--------------------------------------------------------------------------
@@ -237,7 +238,7 @@ mp_pomdp_belief_plot(MDP);
 %--------------------------------------------------------------------------
 mdp.d = mdp.D;
 
-N  = 8;                         % Number of trials to simulate
+N  = 4;                         % Number of trials to simulate
 GP = cell(N,1);                 % Initialise parameters for generative process
 s  = zeros(size(mdp.s,1),N);    % Initialise initial states
 
@@ -261,6 +262,10 @@ BOMDP = mp_POMDP_Block(mdp,s,GP);
 
 mdp_plot_covert(BOMDP{end},OPTIONS)
 mp_pomdp_belief_plot(BOMDP{end});
+if ACT
+    mdp_salience_map(BOMDP{1})
+    mdp_salience_map(BOMDP{end})
+end
 
 case 2
 
@@ -659,7 +664,6 @@ for t = 1:pomdp.T           % Time loop
     % Update stimulus display
     if t==5
         iCentre.Color = 'w';
-        iCentre.Color = 'w';
     elseif t==8 && isscalar(GP.tar)
         for k = 1:nc
             iStim(k).MarkerEdgeColor = col{GP.col(k)};
@@ -731,4 +735,40 @@ for t = 1:pomdp.T           % Time loop
             imwrite(MM,MMM,'Graphics/Animation.gif','gif','WriteMode','append','DelayTime',0.3);
         end
     end
+end
+
+function mdp_salience_map(MDP)
+% Plot salience map over time
+%--------------------------------------------------------------------------
+
+c     = [cos((1/6:1/6:1)*2*pi) 0; % Coordinates for locations of stimuli
+         sin((1/6:1/6:1)*2*pi) 0];
+c0    = min(c(:));
+c1    = max(c(:));
+
+[X,Y] = meshgrid(linspace(c0-c1/2,c1*3/2,64),linspace(c0-c1/2,c1*3/2,64));
+
+Z     = zeros(size(X,1),size(X,2),size(c,2));
+for i = 1:size(Z,3)
+    Z(:,:,i) = exp(-((X-c(1,i)).^2 + (Y-c(2,i)).^2)*8);
+end
+
+cn_figure('Salience map')
+K     = kron(eye(size(c,2)),ones(1,4));
+for i = 1:numel(MDP.P)
+    
+    p = K*MDP.P{i};
+    z = mp_dot(Z,{p});
+
+    subplot(2,1,1)
+    imagesc(z)
+    axis square, axis xy
+    clim([0 0.5])
+
+    subplot(2,1,2)
+    surf(X,Y,z)
+
+    pause(0.5)
+    drawnow
+
 end
